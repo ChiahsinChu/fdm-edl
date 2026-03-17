@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+
+[build-system]
+requires = [
+    "setuptools>=45",
+    "wheel",
+    "setuptools_scm[toml]>=6.2",
+    "hatch-fancy-pypi-readme",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fdm_edl"
+dynamic = ["version", "readme"]
+description = "..."
+license = { file = ".license-header.txt" }
+requires-python = ">=3.10, <3.14"
+# https://docs.jax.dev/en/latest/deprecation.html
+# https://docs.scipy.org/doc/scipy/dev/toolchain.html#other-libraries
+dependencies = [
+    "jax>=0.6.2",
+    "jaxlib>=0.6.2",
+    "numpy>=1.23.5, <2.5.0",
+    "scipy>=1.14, <1.16",
+    "jaxopt>=0.8",
+]
+[project.urls]
+Homepage = "https://jugit.fz-juelich.de/ZhuJia-Xin/fdm-edl.git"
+
+[tool.setuptools_scm]
+write_to = "src/fdm_edl/_version.py"
+local_scheme = "no-local-version"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["fdm_edl"]
+
+[tool.setuptools.dynamic]
+readme = { file = "README.md", content-type = "text/markdown" }
+
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "README.md"
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-html",
+    "mypy",
+]

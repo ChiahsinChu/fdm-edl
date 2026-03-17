@@ -14,7 +14,7 @@ ResidualFunction = Callable[..., jnp.ndarray]
 
 @dataclass
 class RootSolveResult:
-    x: jnp.ndarray
+    solution: jnp.ndarray
     converged: bool
     n_iter: int
     residual_norm: float
@@ -74,7 +74,7 @@ class NewtonSolver(Solver, methods=("newton",)):
 
         residual_norm = float(jnp.linalg.norm(residual_fn(x, *args)))
         return RootSolveResult(
-            x=x,
+            solution=x,
             converged=converged,
             n_iter=n_iter,
             residual_norm=residual_norm,
@@ -111,7 +111,7 @@ class JaxoptBroydenSolver(Solver, methods=("jaxopt_broyden", "broyden")):
         converged = bool(getattr(state, "error", jnp.inf) < self.tol)
         n_iter = int(getattr(state, "iter_num", self.max_iter))
         return RootSolveResult(
-            x=params,
+            solution=params,
             converged=converged,
             n_iter=n_iter,
             residual_norm=residual_norm,
