@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
 """FDM-EDL: Finite Difference Method calculation for Electrical Double Layer structure.
 
 A Python package for 1D and 2D FDM simulations of electrical double layer
