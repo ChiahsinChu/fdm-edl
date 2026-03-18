@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+"""Nonlinear root-finding solvers for the FDM-EDL system."""
 from __future__ import annotations
 
 import importlib
@@ -14,6 +15,21 @@ ResidualFunction = Callable[..., jnp.ndarray]
 
 @dataclass
 class RootSolveResult:
+    """
+    Container for the output of a nonlinear root-finding solve.
+
+    Attributes
+    ----------
+    solution : jax.Array
+        Converged (or best-effort) solution vector.
+    converged : bool
+        ``True`` if the solver met its convergence criterion.
+    n_iter : int
+        Number of iterations performed.
+    residual_norm : float
+        Euclidean norm of the residual evaluated at ``solution``.
+    """
+
     solution: jnp.ndarray
     converged: bool
     n_iter: int
@@ -21,6 +37,24 @@ class RootSolveResult:
 
 
 class Solver(ABC):
+    """
+    Abstract factory and base class for nonlinear root-finding solvers.
+
+    Calling ``Solver(method=...)`` returns a concrete solver instance
+    selected from the registered sub-classes.
+
+    Parameters
+    ----------
+    method : str, optional
+        Solver algorithm to instantiate (default: ``"newton"``).  Must
+        match a key registered in :attr:`_registry`.
+
+    Raises
+    ------
+    ValueError
+        If *method* does not match any registered solver.
+    """
+
     _registry: ClassVar[dict[str, type["Solver"]]] = {}
 
     def __new__(cls, method: str = "newton", **kwargs):
@@ -44,10 +78,50 @@ class Solver(ABC):
     def solve(
         self, residual_fn: ResidualFunction, x0: jnp.ndarray, *args
     ) -> RootSolveResult:
+        """
+        Solve the nonlinear system ``residual_fn(x, *args) = 0``.
+
+        Parameters
+        ----------
+        residual_fn : callable
+            Residual function with signature
+            ``residual_fn(x, *args) -> jax.Array``.
+        x0 : jax.Array
+            Initial guess for the solution.
+        *args
+            Extra positional arguments forwarded to *residual_fn*.
+
+        Returns
+        -------
+        RootSolveResult
+            Result object containing the solution, convergence flag,
+            iteration count, and final residual norm.
+        """
         raise NotImplementedError
 
 
 class NewtonSolver(Solver, methods=("newton",)):
+    """
+    Newton-Raphson solver using JAX automatic differentiation for the
+    Jacobian.
+
+    Parameters
+    ----------
+    method : str or None, optional
+        Ignored; present for API compatibility with the factory.
+    max_iter : int, optional
+        Maximum number of Newton iterations (default: 15).
+    tol : float, optional
+        Convergence tolerance on the step norm (default: 1e-6).
+
+    Attributes
+    ----------
+    max_iter : int
+        Maximum iteration count.
+    tol : float
+        Step-norm convergence threshold.
+    """
+
     def __init__(
         self, method: str | None = None, max_iter: int = 15, tol: float = 1e-6
     ):
@@ -57,6 +131,24 @@ class NewtonSolver(Solver, methods=("newton",)):
     def solve(
         self, residual_fn: ResidualFunction, x0: jnp.ndarray, *args
     ) -> RootSolveResult:
+        """
+        Solve via Newton-Raphson iterations with a full JAX Jacobian.
+
+        Parameters
+        ----------
+        residual_fn : callable
+            Residual function with signature
+            ``residual_fn(x, *args) -> jax.Array``.
+        x0 : jax.Array
+            Initial guess.
+        *args
+            Extra positional arguments forwarded to *residual_fn*.
+
+        Returns
+        -------
+        RootSolveResult
+            Result containing the solution and solver diagnostics.
+        """
         x = x0
         converged = False
         n_iter = 0
@@ -82,6 +174,31 @@ class NewtonSolver(Solver, methods=("newton",)):
 
 
 class JaxoptBroydenSolver(Solver, methods=("jaxopt_broyden", "broyden")):
+    """
+    Broyden quasi-Newton solver backed by *jaxopt*.
+
+    Parameters
+    ----------
+    method : str or None, optional
+        Ignored; present for API compatibility with the factory.
+    max_iter : int, optional
+        Maximum number of Broyden iterations (default: 100).
+    tol : float, optional
+        Convergence tolerance (default: 1e-6).
+
+    Attributes
+    ----------
+    max_iter : int
+        Maximum iteration count.
+    tol : float
+        Convergence threshold.
+
+    Raises
+    ------
+    ImportError
+        If *jaxopt* is not installed.
+    """
+
     def __init__(
         self, method: str | None = None, max_iter: int = 100, tol: float = 1e-6
     ):
@@ -98,6 +215,24 @@ class JaxoptBroydenSolver(Solver, methods=("jaxopt_broyden", "broyden")):
     def solve(
         self, residual_fn: ResidualFunction, x0: jnp.ndarray, *args
     ) -> RootSolveResult:
+        """
+        Solve via Broyden's quasi-Newton method using *jaxopt*.
+
+        Parameters
+        ----------
+        residual_fn : callable
+            Residual function with signature
+            ``residual_fn(x, *args) -> jax.Array``.
+        x0 : jax.Array
+            Initial guess.
+        *args
+            Extra positional arguments forwarded to *residual_fn*.
+
+        Returns
+        -------
+        RootSolveResult
+            Result containing the solution and solver diagnostics.
+        """
         solver = self._broyden_cls(
             optimality_fun=residual_fn,
             maxiter=self.max_iter,

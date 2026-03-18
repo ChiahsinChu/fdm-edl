@@ -12,6 +12,66 @@ from fdm_edl.utils import AVOGADRO, BOLTZMANN, ELEMENTARY_CHARGE, EPSILON_0, loa
 
 
 class ElectricalDoubleLayer:
+    """
+    1-D Electrical Double Layer (EDL) model based on the Poisson-Boltzmann
+    equation, solved with a finite-difference method.
+
+    Parameters
+    ----------
+    params : dict or str or pathlib.Path
+        Model parameters as a dictionary or as a path to a JSON/YAML file.
+        Required keys:
+
+        ``temperature`` : float
+            Absolute temperature in Kelvin.
+
+        Optional keys:
+
+        ``epsilon_r`` : float
+            Relative permittivity of the solvent (default: 78.5).
+        ``electrode`` : dict
+            Keyword arguments forwarded to :class:`~fdm_edl.edl.Electrode`.
+        ``electrolyte`` : dict
+            Keyword arguments forwarded to
+            :class:`~fdm_edl.edl.Electrolyte`.
+        ``solver`` : dict
+            Keyword arguments forwarded to :class:`~fdm_edl.solver.Solver`.
+
+    Attributes
+    ----------
+    temperature : float
+        System temperature in Kelvin.
+    epsilon_r : float
+        Relative permittivity of the solvent.
+    epsilon : float
+        Absolute permittivity (``epsilon_r * EPSILON_0``) in F/m.
+    beta : float
+        Inverse thermal voltage (``e / (k_B T)``) in 1/V.
+    faraday : float
+        Faraday constant (``e * N_A``) in C/mol.
+    gas_constant : float
+        Molar gas constant (``k_B * N_A``) in J/(mol·K).
+    electrode : Electrode
+        Electrode component of the EDL model.
+    electrolyte : Electrolyte
+        Electrolyte component of the EDL model.
+    solver : Solver
+        Nonlinear root-finding solver.
+    coordinates : ndarray or None
+        Grid coordinates (nm) from the last :meth:`compute` call.
+    solution : jax.Array or None
+        Full electrostatic potential profile (V) from the last
+        :meth:`compute` call.
+    results : RootSolveResult or None
+        Full solver result from the last :meth:`compute` call.
+
+    Raises
+    ------
+    ValueError
+        If ``params`` is not a dict or a valid path, or if ``temperature``
+        is missing from the parameter dictionary.
+    """
+
     def __init__(self, params: dict | str | pathlib.Path):
         if isinstance(params, dict):
             self._params = copy.deepcopy(params)
@@ -48,11 +108,36 @@ class ElectricalDoubleLayer:
         self.results = None
 
     def set_solver(self, solver_params: dict):
+        """
+        Set up the nonlinear solver with new parameters.
+
+        Parameters
+        ----------
+        solver_params : dict
+            Keyword arguments forwarded to :class:`~fdm_edl.solver.Solver`.
+        """
         self.solver = Solver(**solver_params)
 
     def compute(self, coordinates, phi_wall):
         """
-        Solve for electrostatic potential profile with boundary conditions.
+        Solve for the electrostatic potential profile.
+
+        Uses the Poisson-Boltzmann equation with Dirichlet boundary
+        conditions: ``phi(x=0) = phi_wall`` and ``phi(x=L) = 0``.
+
+        Parameters
+        ----------
+        coordinates : array-like of float
+            1-D grid coordinates in nanometres, including both boundary
+            nodes.
+        phi_wall : float
+            Electrostatic potential at the electrode surface in Volts.
+
+        Returns
+        -------
+        solution : jax.Array
+            Electrostatic potential (V) at every grid node, including the
+            two boundary values.
         """
         n_grid_int = len(coordinates) - 2  # Number of interior points
         phi_int = jnp.zeros(n_grid_int)  # Initial guess
@@ -76,7 +161,45 @@ class ElectricalDoubleLayer:
         coordinates,
     ):
         """
-        Generalized Poisson-Boltzmann Residual
+        Compute the Poisson-Boltzmann residual at interior grid nodes.
+
+        Parameters
+        ----------
+        phi_int : jax.Array, shape (N,)
+            Electrostatic potential (V) at the *N* interior grid nodes.
+        phi_left : float
+            Dirichlet value at the left boundary (electrode surface) in V.
+        phi_right : float
+            Dirichlet value at the right boundary (bulk) in V.
+        coordinates : array-like of float, shape (N+2,)
+            Grid node positions in nanometres, including boundary nodes.
+
+        Returns
+        -------
+        residual : jax.Array, shape (N,)
+            Residual of the discretised Poisson equation at each interior
+            node.  Zero when the solution satisfies the Poisson-Boltzmann
+            equation.
+
+        Notes
+        -----
+        The Poisson-Boltzmann equation in SI units is
+
+        .. math::
+
+            \\frac{d^2\\phi}{dx^2}
+            + \\frac{\\rho_{\\mathrm{ion}}}{\\varepsilon} = 0
+
+        where the ionic charge density is
+
+        .. math::
+
+            \\rho_{\\mathrm{ion}} = F \\sum_j z_j c_j^0
+                \\exp\\!\\left(-\\frac{z_j F \\phi}{RT}\\right).
+
+        The second derivative is approximated with a central
+        finite-difference stencil.  Input coordinates in nm are converted
+        to metres internally.
         """
         # Coordinates are provided in nm, while SI Poisson-Boltzmann is in meters.
         dx = (jnp.diff(coordinates)[1:] + jnp.diff(coordinates)[:-1]) / 2.0 * 1e-9
@@ -108,6 +231,21 @@ class ElectricalDoubleLayer:
         return d2phi + rho_ion / self.epsilon
 
     def plot(self):
+        """
+        Plot the electrostatic potential and ion concentration profiles.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object containing both subplots.
+        axs : ndarray of matplotlib.axes.Axes, shape (2,)
+            Array of axes: ``axs[0]`` holds the potential profile and
+            ``axs[1]`` the ion concentration profiles.
+
+        Notes
+        -----
+        :meth:`compute` must be called before :meth:`plot`.
+        """
         nrows = 2
         ncols = 1
         fig, axs = plt.subplots(

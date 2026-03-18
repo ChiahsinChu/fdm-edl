@@ -7,7 +7,29 @@ from typing import Any
 
 
 def load_dict(file_path: str | Path) -> dict[str, Any]:
-    """Load model parameters from a JSON or YAML file into a dictionary."""
+    """
+    Load model parameters from a JSON or YAML file.
+
+    Parameters
+    ----------
+    file_path : str or pathlib.Path
+        Path to a ``.json``, ``.yml``, or ``.yaml`` parameter file.
+
+    Returns
+    -------
+    dict
+        Dictionary of model parameters decoded from the file.
+
+    Raises
+    ------
+    FileNotFoundError
+        If *file_path* does not point to an existing file.
+    ValueError
+        If the file extension is not supported, or if the decoded content
+        is not a dictionary.
+    ImportError
+        If a YAML file is requested and *PyYAML* is not installed.
+    """
     path = Path(file_path)
     if not path.exists():
         raise FileNotFoundError(f"Parameter file not found: {path}")
