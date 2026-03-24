@@ -2,13 +2,16 @@
 import copy
 import pathlib
 
-import jax.numpy as jnp
+import quaxed.numpy as jnp
+import unxt
 from matplotlib import pyplot as plt
 
 from fdm_edl.edl.electrode import Electrode
-from fdm_edl.edl.electrolyte import Electrolyte
-from fdm_edl.solver import Solver
-from fdm_edl.utils import AVOGADRO, BOLTZMANN, ELEMENTARY_CHARGE, EPSILON_0, load_dict
+from fdm_edl.edl.electrolyte import Electrolyte, Ion
+from fdm_edl.solver.base import BaseSolver
+from fdm_edl.utils import load_dict, to_unxtq
+
+from .. import _constants
 
 
 class ElectricalDoubleLayer:
@@ -35,35 +38,28 @@ class ElectricalDoubleLayer:
             Keyword arguments forwarded to
             :class:`~fdm_edl.edl.Electrolyte`.
         ``solver`` : dict
-            Keyword arguments forwarded to :class:`~fdm_edl.solver.Solver`.
+            Keyword arguments forwarded to :class:`~fdm_edl.solver.BaseSolver`.
 
     Attributes
     ----------
-    temperature : float
-        System temperature in Kelvin.
-    epsilon_r : float
-        Relative permittivity of the solvent.
-    epsilon : float
-        Absolute permittivity (``epsilon_r * EPSILON_0``) in F/m.
-    beta : float
-        Inverse thermal voltage (``e / (k_B T)``) in 1/V.
-    faraday : float
-        Faraday constant (``e * N_A``) in C/mol.
-    gas_constant : float
-        Molar gas constant (``k_B * N_A``) in J/(mol·K).
+    temperature : unxt.Quantity
+        System temperature.
+    dim : int
+        Spatial dimension of the model (default: 1).
     electrode : Electrode
         Electrode component of the EDL model.
     electrolyte : Electrolyte
         Electrolyte component of the EDL model.
-    solver : Solver
+    solver : BaseSolver
         Nonlinear root-finding solver.
-    coordinates : ndarray or None
-        Grid coordinates (nm) from the last :meth:`compute` call.
-    solution : jax.Array or None
-        Full electrostatic potential profile (V) from the last
-        :meth:`compute` call.
-    results : RootSolveResult or None
-        Full solver result from the last :meth:`compute` call.
+    coordinates : unxt.Quantity or None
+        Grid coordinates from the last :meth:`compute` call, or ``None``
+        before :meth:`compute` is called.
+    result : RootSolveResult or None
+        Full solver result from the last :meth:`compute` call, or ``None``
+        before :meth:`compute` is called.  The assembled potential profile
+        is available as ``result.solution`` and the grid coordinates as
+        ``result.coordinates``.
 
     Raises
     ------
@@ -80,45 +76,81 @@ class ElectricalDoubleLayer:
         else:
             raise ValueError("params must be a dict or a path to a yaml/json file")
 
-        self.electrode_params = self._params.pop("electrode", {})
-        self.electrolyte_params = self._params.pop("electrolyte", {})
-        self.solver_params = self._params.pop("solver", {})
+        # get mandatory global parameters and set as attributes
+        try:
+            self.temperature = to_unxtq(self._params["temperature"])
+        except KeyError:
+            raise ValueError("`temperature` is required.")
+        self.dim: int = self._params.pop("dim", 1)
 
-        if "temperature" not in self._params:
-            raise ValueError("temperature (K) is required in global params for SI mode")
-        self.temperature = float(self._params["temperature"])
+        self.set_electrode(self._params.get("electrode", {}))
+        self.set_electrolyte(self._params.get("electrolyte", {}))
+        self.set_solver(self._params.get("solver", {}))
 
-        # Relative permittivity defaults to water at room temperature.
-        self.epsilon_r = float(
-            self._params.get("epsilon_r", self._params.get("epsilon_r", 78.5))
-        )
-        self.epsilon = self.epsilon_r * EPSILON_0
-        self.beta = ELEMENTARY_CHARGE / (BOLTZMANN * self.temperature)
-        self.faraday = ELEMENTARY_CHARGE * AVOGADRO
-        self.gas_constant = BOLTZMANN * AVOGADRO
-
-        self.electrode = Electrode(global_params=self._params, **self.electrode_params)
-        self.electrolyte = Electrolyte(
-            global_params=self._params, **self.electrolyte_params
-        )
-
-        self.solver = Solver(**self.solver_params)
         # placeholders for results
         self.coordinates = None
         self.results = None
 
-    def set_solver(self, solver_params: dict):
+    def set_electrode(self, _params: dict):
+        """
+        Set up the electrode with new parameters.
+
+        Parameters
+        ----------
+        _params : dict
+            Keyword arguments forwarded to :class:`~fdm_edl.edl.Electrode`.
+            Currently unused; the electrode is initialised with the system
+            temperature only.
+        """
+        params = {
+            "temperature": self.temperature,
+        }
+        self.electorde = Electrode(**params)
+
+    def set_electrolyte(self, _params: dict):
+        """
+        Set up the electrolyte with new parameters.
+
+        Parameters
+        ----------
+        _params : dict
+            Keyword arguments forwarded to :class:`~fdm_edl.edl.Electrolyte`.
+            Recognised keys:
+
+            ``ions`` : dict
+                Mapping of ion name to a sub-dict with keys ``charge``
+                (ionic charge as a quantity string, e.g. ``"1 e"``) and
+                ``molar_conc`` (bulk molar concentration as a quantity
+                string, e.g. ``"0.1 mol/L"``).
+            ``epsilon_r`` : float, optional
+                Relative permittivity of the solvent (default: 78.5).
+        """
+        params = {
+            "ions": [
+                Ion(
+                    name=name,
+                    charge=to_unxtq(data["charge"]),
+                    molar_conc=to_unxtq(data["molar_conc"]),
+                )
+                for name, data in _params.get("ions", {}).items()
+            ],
+            "epsilon": _params.get("epsilon_r", 78.5) * _constants.VACUUM_PERMITTIVITY,
+            "temperature": self.temperature,
+        }
+        self.electrolyte = Electrolyte(**params)
+
+    def set_solver(self, _params: dict):
         """
         Set up the nonlinear solver with new parameters.
 
         Parameters
         ----------
-        solver_params : dict
-            Keyword arguments forwarded to :class:`~fdm_edl.solver.Solver`.
+        _params : dict
+            Keyword arguments forwarded to :class:`~fdm_edl.solver.BaseSolver`.
         """
-        self.solver = Solver(**solver_params)
+        self.solver = BaseSolver(**_params)
 
-    def compute(self, coordinates, phi_wall):
+    def compute(self, coordinates: unxt.Quantity, phi_wall: unxt.Quantity):
         """
         Solve for the electrostatic potential profile.
 
@@ -127,52 +159,72 @@ class ElectricalDoubleLayer:
 
         Parameters
         ----------
-        coordinates : array-like of float
-            1-D grid coordinates in nanometres, including both boundary
-            nodes.
-        phi_wall : float
-            Electrostatic potential at the electrode surface in Volts.
+        coordinates : unxt.Quantity
+            1-D grid coordinates including both boundary nodes.
+        phi_wall : unxt.Quantity
+            Electrostatic potential at the electrode surface.
 
         Returns
         -------
-        solution : jax.Array
-            Electrostatic potential (V) at every grid node, including the
-            two boundary values.
+        None
+            The result is stored in ``self.result``.  The assembled
+            potential profile (including boundary values) is available as
+            ``self.result.solution``; the grid coordinates are available
+            as ``self.result.coordinates``.
         """
-        n_grid_int = len(coordinates) - 2  # Number of interior points
-        phi_int = jnp.zeros(n_grid_int)  # Initial guess
+        # check coordinates shape is (N+2, dim) for some N
+        # if coordinates.shape[1] != self.dim:
+        #     raise ValueError("coordinates shape is incompatible with system dimension")
+
+        # Initial guess
+        phi_int = unxt.Quantity(
+            jnp.zeros((coordinates.shape[0] - 2)), unit=phi_wall.unit
+        )
+        dr = (jnp.diff(coordinates)[1:] + jnp.diff(coordinates)[:-1]) / 2.0
+        # print(phi.shape, dr.shape)
 
         result = self.solver.solve(
-            self.get_residual, phi_int, phi_wall, 0.0, coordinates
+            self.get_residual,
+            phi_int,
+            unxt.Quantity(jnp.full((1,), phi_wall.value), unit=phi_wall.unit),
+            unxt.Quantity(jnp.zeros((1,)), unit=phi_wall.unit),
+            dr,
         )
-        self.coordinates = coordinates
-        self.results = result
-        self.solution = jnp.concatenate(
-            [jnp.array([phi_wall]), result.solution, jnp.array([0.0])]
+        result.set_coordinate(coordinates)
+
+        result.set_solution(
+            jnp.concatenate(
+                [
+                    unxt.Quantity(jnp.full((1,), phi_wall.value), unit=phi_wall.unit),
+                    result.solution_int,
+                    unxt.Quantity(jnp.zeros((1,)), unit=phi_wall.unit),
+                ]
+            )
         )
 
-        return self.solution
+        self.result = result
 
     def get_residual(
         self,
-        phi_int,
-        phi_left,
-        phi_right,
-        coordinates,
+        phi_int: unxt.Quantity,
+        phi_left: unxt.Quantity,
+        phi_right: unxt.Quantity,
+        dr: unxt.Quantity,
     ):
         """
         Compute the Poisson-Boltzmann residual at interior grid nodes.
 
         Parameters
         ----------
-        phi_int : jax.Array, shape (N,)
-            Electrostatic potential (V) at the *N* interior grid nodes.
-        phi_left : float
-            Dirichlet value at the left boundary (electrode surface) in V.
-        phi_right : float
-            Dirichlet value at the right boundary (bulk) in V.
-        coordinates : array-like of float, shape (N+2,)
-            Grid node positions in nanometres, including boundary nodes.
+        phi_int : unxt.Quantity, shape (N,)
+            Electrostatic potential at the *N* interior grid nodes.
+        phi_left : unxt.Quantity, shape (1,)
+            Dirichlet value at the left boundary (electrode surface).
+        phi_right : unxt.Quantity, shape (1,)
+            Dirichlet value at the right boundary (bulk).
+        dr : unxt.Quantity, shape (N,)
+            Average spacing between adjacent node pairs, computed as
+            ``(diff[1:] + diff[:-1]) / 2`` from the full coordinate array.
 
         Returns
         -------
@@ -194,41 +246,43 @@ class ElectricalDoubleLayer:
 
         .. math::
 
-            \\rho_{\\mathrm{ion}} = F \\sum_j z_j c_j^0
-                \\exp\\!\\left(-\\frac{z_j F \\phi}{RT}\\right).
+            \\rho_{\\mathrm{ion}} = N_A \\sum_j q_j c_j^0
+                \\exp\\!\\left(-\\frac{q_j \\phi}{k_B T}\\right).
 
+        Here :math:`q_j` is the ionic charge in Coulombs,
+        :math:`c_j^0` is the bulk molar concentration,
+        :math:`N_A` is Avogadro's number, and :math:`k_B` is the
+        Boltzmann constant.
         The second derivative is approximated with a central
-        finite-difference stencil.  Input coordinates in nm are converted
-        to metres internally.
+        finite-difference stencil.
         """
-        # Coordinates are provided in nm, while SI Poisson-Boltzmann is in meters.
-        dx = (jnp.diff(coordinates)[1:] + jnp.diff(coordinates)[:-1]) / 2.0 * 1e-9
         # get full phi including boundaries
-        phi = jnp.concatenate([jnp.array([phi_left]), phi_int, jnp.array([phi_right])])
-
+        # todo: make it more general for different boundary conditions
+        phi = jnp.concatenate(
+            [
+                phi_left,
+                phi_int.reshape(-1),
+                phi_right,
+            ]
+        )
         # Laplace term: d2phi/dx2
-        d2phi = (phi[:-2] - 2 * phi[1:-1] + phi[2:]) / dx**2
+        d2phi = (phi[:-2] - 2 * phi[1:-1] + phi[2:]) / dr**2
 
         # Generalized Boltzmann charge density term
         # rho = sum( q_j * c_j * exp(-q_j * phi) )
-        rho_ion = 0.0
-        for data in self.electrolyte.ions.values():
-            z = data["charge"]
-            c_molm3 = data["conc"] * 1000.0  # input conc is mol/L
+        rho_ion = unxt.Quantity(0.0, "C / m^3")
+        for ion in self.electrolyte.ions:
             rho_ion += (
-                self.faraday
-                * z
-                * c_molm3
+                ion.charge
+                * ion.molar_conc
+                * _constants.AVOGADRO_NUMBER
                 * jnp.exp(
-                    -z
-                    * self.faraday
+                    -ion.charge
                     * phi[1:-1]
-                    / (self.gas_constant * self.temperature)
+                    / (_constants.BOLTZMANN_CONSTANT * self.temperature)
                 )
             )
-
-        # SI Poisson equation: d2phi/dx2 + rho/epsilon = 0
-        return d2phi + rho_ion / self.epsilon
+        return d2phi + rho_ion / self.electrolyte.epsilon
 
     def plot(self):
         """
@@ -268,9 +322,9 @@ class ElectricalDoubleLayer:
             # Local concentration in mol/L.
             local_c = c0 * jnp.exp(
                 -z
-                * self.faraday
+                * _constants.FARADAY_CONSTANT
                 * self.solution
-                / (self.gas_constant * self.temperature)
+                / (_constants.GAS_CONSTANT * self.temperature)
             )
             ax.plot(self.coordinates, local_c, label=f"{name} ($z={z}$)")
             total_q_conc += local_c * z
@@ -292,3 +346,45 @@ class ElectricalDoubleLayer:
         ax.set_xlabel("nm")
         plt.tight_layout()
         return fig, axs
+
+
+"""
+def get_residual(
+        self,
+        phi_int: unxt.Quantity,
+        phi_left: unxt.Quantity,
+        phi_right: unxt.Quantity,
+        coordinates: unxt.Quantity,
+    ):
+
+        # Coordinates are provided in nm, while SI Poisson-Boltzmann is in meters.
+        dx = (jnp.diff(coordinates)[1:] + jnp.diff(coordinates)[:-1]) / 2.0 * 1e-9
+        # get full phi including boundaries
+        phi = jnp.concatenate([jnp.array([phi_left]), phi_int, jnp.array([phi_right])])
+
+        # Laplace term: d2phi/dx2
+        d2phi = (phi[:-2] - 2 * phi[1:-1] + phi[2:]) / dx**2
+
+        # Generalized Boltzmann charge density term
+        # rho = sum( q_j * c_j * exp(-q_j * phi) )
+        # todo: make the unit correct
+        rho_ion = 0.0
+        for ion in self.electrolyte.ions:
+            z = ion.charge
+            c_molm3 = ion.molar_conc.to("mol/m^3")
+            rho_ion += (
+                _constants.FARADAY_CONSTANT
+                * z
+                * c_molm3
+                * jnp.exp(
+                    -z
+                    * _constants.FARADAY_CONSTANT
+                    * phi[1:-1]
+                    / (_constants.GAS_CONSTANT * self.temperature)
+                )
+            )
+
+        # SI Poisson equation: d2phi/dx2 + rho/epsilon = 0
+        return d2phi + rho_ion / self.electrolyte.epsilon
+
+"""

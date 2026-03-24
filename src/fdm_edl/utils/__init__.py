@@ -3,6 +3,7 @@
 
 from .constants import AVOGADRO, BOLTZMANN, ELEMENTARY_CHARGE, EPSILON_0
 from .io import load_dict
+from .utils import to_unxtq
 
 __all__ = [
     "AVOGADRO",
@@ -10,4 +11,5 @@ __all__ = [
     "EPSILON_0",
     "ELEMENTARY_CHARGE",
     "load_dict",
+    "to_unxtq",
 ]

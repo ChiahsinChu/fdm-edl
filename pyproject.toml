@@ -14,15 +14,17 @@ name = "fdm_edl"
 dynamic = ["version", "readme"]
 description = "..."
 license = { file = ".license-header.txt" }
-requires-python = ">=3.10, <3.14"
+requires-python = ">=3.11, <3.14"
 # https://docs.jax.dev/en/latest/deprecation.html
 # https://docs.scipy.org/doc/scipy/dev/toolchain.html#other-libraries
 dependencies = [
-    "jax>=0.6.2",
-    "jaxlib>=0.6.2",
+    "jax>=0.7.2",
+    "jaxlib>=0.7.2",
     "numpy>=1.23.5, <2.5.0",
     "scipy>=1.14, <1.16",
-    "jaxopt>=0.8",
+    "optax>=0.2.8",
+    "unxt>=1.11.0",
+    "matplotlib",
 ]
 [project.urls]
 Homepage = "https://jugit.fz-juelich.de/ZhuJia-Xin/fdm-edl.git"

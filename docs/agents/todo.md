@@ -15,11 +15,11 @@ last_updated: 2026-03-17
 - [x] Solvent dielectric constant `epsilon_r` (default 78.5 for water)
 - [x] Load parameters from `dict`, JSON, or YAML file
 - [x] Electroneutrality check on electrolyte input
+- [x] Compute analytical properties (e.g., Debye length) without solving the full PDE
 
 ### Pending
 
 - [ ] Allow more flexible / automated grid generation (e.g., non-uniform, adaptive spacing)
-- [ ] Compute analytical properties (e.g., Debye length) without solving the full PDE
 - [ ] Add physical units to output results and plots (e.g., via [`unxt`](https://github.com/GalacticDynamics/unxt))
 
 ## Documentation

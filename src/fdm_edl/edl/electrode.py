@@ -1,8 +1,18 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+from dataclasses import dataclass
+
+import unxt
+
 from fdm_edl.utils.geometry import Geometry
 
 
+@dataclass(frozen=True)
 class Electrode:
+    metal: str = "Pt"
+    temperature: unxt.Quantity = None  # in K
+
+
+class DeprecatedElectrode:
     """
     Electrode component of an EDL simulation.
 
