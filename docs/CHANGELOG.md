@@ -1,10 +1,26 @@
 ---
 status: draft
 author: Jia-Xin Zhu, AI Agent
-last_updated: 2026-03-17
+last_updated: 2026-03-25
 ---
 
 # CHANGELOG
+
+## [0.1.dev3] - 2026-03-25
+
+### Added
+
+- Boundary condition module (`bc/`): `BoundaryCondition` ABC, `DirichletBC`, `NeumannBC`, `RobinBC`, `PeriodicBC`
+- Laplacian operator module (`operators/`): `LaplacianOperator` ABC, `LaplacianOperator1D` (3-point nonuniform stencil)
+- Optional `phi0` parameter in `compute()` for user-supplied initial guesses
+
+### Changed
+
+- Generalised `ElectricalDoubleLayer.compute()` to accept `(n_grid, n_dim)` coordinates (1-D arrays auto-reshaped)
+- `compute()` now takes a `list[BoundaryCondition]` instead of a scalar `phi_wall`; Laplacian is an optional external operator
+- `get_residual()` evaluates physics at all nodes and lets BCs overwrite their entries
+- Solver operates on the full grid vector (boundary + interior) instead of interior-only
+- Updated test to use explicit `DirichletBC` objects
 
 ## [0.1.dev2] - 2026-03-17
 
