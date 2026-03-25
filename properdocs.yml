@@ -1,0 +1,88 @@
+site_name: FDM-EDL
+site_description: Finite Difference Method for Electrical Double Layer simulations
+site_author: Jia-Xin Zhu
+repo_url: https://jugit.fz-juelich.de/ZhuJia-Xin/fdm-edl
+repo_name: fdm-edl
+copyright: Copyright &copy; 2026 Jia-Xin Zhu
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - content.code.copy
+    - search.highlight
+    - search.share
+  icon:
+    repo: fontawesome/brands/git-alt
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_source: true
+            show_root_heading: true
+            show_root_members_full_path: false
+            merge_init_into_class: true
+            docstring_style: numpy
+            docstring_section_style: spacy
+            group_by_category: true
+            show_object_full_path: false
+            show_signature_annotations: true
+            filters: ["!^_"]
+  - glightbox
+  - git-revision-date-localized:
+      type: timeago
+      enable_creation_date: true
+      enable_git_follow: false
+
+markdown_extensions:
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
+  - admonition
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - toc:
+      permalink: true
+
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+nav:
+  - Home: index.md
+  - Changelog: CHANGELOG.md
+  - API Reference:
+      - EDL System: api/edl/system.md
+      - Electrode: api/edl/electrode.md
+      - Electrolyte: api/edl/electrolyte.md
+      - Boundary Conditions: api/bc.md
+      - Operators: api/operators.md
+      - Solver: api/solver.md
+      - Utilities: api/utils.md
