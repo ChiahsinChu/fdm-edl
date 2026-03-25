@@ -2,7 +2,7 @@
 """Nonlinear root-finding solvers."""
 
 from fdm_edl.solver.base import BaseSolver
-from fdm_edl.solver.test import NewtonSolver
+from fdm_edl.solver.naive_newton import NewtonSolver
 
 __all__ = [
     "BaseSolver",

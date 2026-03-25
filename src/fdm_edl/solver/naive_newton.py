@@ -33,7 +33,10 @@ class NewtonSolver(BaseSolver, methods=("newton",)):
     """
 
     def __init__(
-        self, method: str | None = None, max_iter: int = 15, tol: float = 1e-6
+        self,
+        method: str | None = None,
+        max_iter: int = 20,
+        tol: float = 1e-6,
     ):
         self.max_iter = max_iter
         self.tol = tol
@@ -64,7 +67,7 @@ class NewtonSolver(BaseSolver, methods=("newton",)):
 
         for ii in range(self.max_iter):
             res = residual_fn(phi_int, *args)
-            _jac = jax.jacfwd(residual_fn)(phi_int, *args)
+            _jac = jax.jacobian(residual_fn)(phi_int, *args)
             jac = unxt.Quantity(_jac.value.value, unit=_jac.unit / phi_int.unit)
             step = jnp.linalg.solve(jac, -res)
             phi_int = phi_int + step.reshape(phi_int.shape)

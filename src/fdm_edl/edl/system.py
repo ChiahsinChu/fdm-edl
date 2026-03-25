@@ -105,7 +105,7 @@ class ElectricalDoubleLayer:
         params = {
             "temperature": self.temperature,
         }
-        self.electorde = Electrode(**params)
+        self.electrode = Electrode(**params)
 
     def set_electrolyte(self, _params: dict):
         """
@@ -180,15 +180,12 @@ class ElectricalDoubleLayer:
         phi_int = unxt.Quantity(
             jnp.zeros((coordinates.shape[0] - 2)), unit=phi_wall.unit
         )
-        dr = (jnp.diff(coordinates)[1:] + jnp.diff(coordinates)[:-1]) / 2.0
-        # print(phi.shape, dr.shape)
-
         result = self.solver.solve(
             self.get_residual,
             phi_int,
             unxt.Quantity(jnp.full((1,), phi_wall.value), unit=phi_wall.unit),
             unxt.Quantity(jnp.zeros((1,)), unit=phi_wall.unit),
-            dr,
+            coordinates,
         )
         result.set_coordinate(coordinates)
 
@@ -209,7 +206,7 @@ class ElectricalDoubleLayer:
         phi_int: unxt.Quantity,
         phi_left: unxt.Quantity,
         phi_right: unxt.Quantity,
-        dr: unxt.Quantity,
+        coordinates: unxt.Quantity,
     ):
         """
         Compute the Poisson-Boltzmann residual at interior grid nodes.
@@ -222,9 +219,8 @@ class ElectricalDoubleLayer:
             Dirichlet value at the left boundary (electrode surface).
         phi_right : unxt.Quantity, shape (1,)
             Dirichlet value at the right boundary (bulk).
-        dr : unxt.Quantity, shape (N,)
-            Average spacing between adjacent node pairs, computed as
-            ``(diff[1:] + diff[:-1]) / 2`` from the full coordinate array.
+        coordinates : unxt.Quantity, shape (N+2,)
+            Full 1-D grid coordinates including boundary nodes.
 
         Returns
         -------
@@ -256,8 +252,8 @@ class ElectricalDoubleLayer:
         The second derivative is approximated with a central
         finite-difference stencil.
         """
-        # get full phi including boundaries
-        # todo: make it more general for different boundary conditions
+        # Assemble the full potential including boundary nodes and evaluate the
+        # strong-form residual in SI units for consistent scaling.
         phi = jnp.concatenate(
             [
                 phi_left,
@@ -265,24 +261,63 @@ class ElectricalDoubleLayer:
                 phi_right,
             ]
         )
-        # Laplace term: d2phi/dx2
-        d2phi = (phi[:-2] - 2 * phi[1:-1] + phi[2:]) / dr**2
+
+        x = coordinates.to("m")
+        phi = phi.to("V")
+        dx_left = x[1:-1] - x[:-2]
+        dx_right = x[2:] - x[1:-1]
+
+        # Second derivative on a nonuniform 1-D grid.
+        d2phi = (
+            2.0
+            / (dx_left + dx_right)
+            * ((phi[2:] - phi[1:-1]) / dx_right - (phi[1:-1] - phi[:-2]) / dx_left)
+        )
 
         # Generalized Boltzmann charge density term
-        # rho = sum( q_j * c_j * exp(-q_j * phi) )
         rho_ion = unxt.Quantity(0.0, "C / m^3")
         for ion in self.electrolyte.ions:
+            charge = ion.charge.to("C")
+            bulk_concentration = ion.molar_conc.to("mol/m^3")
+            exponent = (
+                -charge * phi[1:-1] / (_constants.BOLTZMANN_CONSTANT * self.temperature)
+            ).to("")
             rho_ion += (
-                ion.charge
-                * ion.molar_conc
+                charge
+                * bulk_concentration
                 * _constants.AVOGADRO_NUMBER
-                * jnp.exp(
-                    -ion.charge
-                    * phi[1:-1]
-                    / (_constants.BOLTZMANN_CONSTANT * self.temperature)
-                )
+                * jnp.exp(exponent)
             )
         return d2phi + rho_ion / self.electrolyte.epsilon
+
+    def get_ion_concentration_profiles(self):
+        """
+        Compute the local ion concentration profiles based on the computed
+        potential.
+
+        Returns
+        -------
+        conc_profiles : dict
+            Mapping of ion name to local concentration profile as a
+            :class:`unxt.Quantity` array with units of mol/m^3.
+
+        Notes
+        -----
+        :meth:`compute` must be called before :meth:`get_ion_concentration_profiles`.
+        """
+        if self.result is None:
+            raise ValueError(
+                "Must call compute() before get_ion_concentration_profiles()"
+            )
+
+        conc_profiles = {}
+        for ion in self.electrolyte.ions:
+            valency = (ion.charge.to("C") / _constants.ELEMENTARY_CHARGE).to("").value
+            conc_profiles[ion.name] = ion.molar_conc * boltzmann_factor(
+                phi=self.result.solution, temperature=self.temperature, valency=valency
+            )
+
+        return conc_profiles
 
     def plot(self):
         """
@@ -388,3 +423,12 @@ def get_residual(
         return d2phi + rho_ion / self.electrolyte.epsilon
 
 """
+
+
+def boltzmann_factor(
+    phi: unxt.Quantity,
+    temperature: unxt.Quantity,
+    valency: int = 1,
+):
+    beta = 1.0 / (_constants.BOLTZMANN_CONSTANT * temperature).to("eV")
+    return jnp.exp((-_constants.ELEMENTARY_CHARGE * phi * beta * valency).to(""))

@@ -1,0 +1,32 @@
+{
+  "temperature": {
+    "value": 298,
+    "unit": "K"
+  },
+  "electrode": {},
+  "electrolyte": {
+    "epsilon_r": 78.5,
+    "ions": {
+      "Na": {
+        "molar_conc": {
+          "value": 0.1,
+          "unit": "mol/L"
+        },
+        "charge": {
+          "value": 1.0,
+          "unit": "e"
+        }
+      },
+      "Cl": {
+        "molar_conc": {
+          "value": 0.1,
+          "unit": "mol/L"
+        },
+        "charge": {
+          "value": -1.0,
+          "unit": "e"
+        }
+      }
+    }
+  }
+}
