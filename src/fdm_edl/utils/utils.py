@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+"""Utility functions for FDM-EDL."""
+
 import unxt
 from astropy.units import cds
 

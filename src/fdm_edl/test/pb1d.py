@@ -17,6 +17,17 @@ class BasePoissonBoltzmann:
         x: unxt.Quantity,
         sigma: unxt.Quantity,
     ):
+        """Initialise the analytical PB model.
+
+        Parameters
+        ----------
+        edl_obj : ElectricalDoubleLayer
+            Configured EDL system (electrolyte, temperature, etc.).
+        x : unxt.Quantity
+            Spatial coordinates at which to evaluate the solution.
+        sigma : unxt.Quantity
+            Surface charge density.
+        """
         self.edl_obj = edl_obj
         self.beta = 1.0 / (_constants.BOLTZMANN_CONSTANT * self.edl_obj.temperature).to(
             "eV"
@@ -27,6 +38,7 @@ class BasePoissonBoltzmann:
 
     @property
     def exp_factor(self) -> unxt.Quantity:
+        """Dimensionless exponential decay factor exp(-x / λ_D)."""
         return jnp.exp(-(self.x / self.edl_obj.electrolyte.debye_length)).to("")
 
 
@@ -39,6 +51,7 @@ class LinearPoissonBoltzmann(BasePoissonBoltzmann):
 
     @property
     def phi(self) -> unxt.Quantity:
+        """Linearised PB potential profile in Volts."""
         return (
             self.sigma
             * self.edl_obj.electrolyte.debye_length
@@ -48,6 +61,7 @@ class LinearPoissonBoltzmann(BasePoissonBoltzmann):
 
     @property
     def rho(self) -> unxt.Quantity:
+        """Linearised PB charge density profile in mol/L."""
         _rho = -self.sigma / self.edl_obj.electrolyte.debye_length * self.exp_factor
         return (_rho / (_constants.ELEMENTARY_CHARGE * _constants.AVOGADRO_NUMBER)).to(
             "mol/L"
@@ -108,6 +122,7 @@ class NonLinearPoissonBoltzmann(BasePoissonBoltzmann):
 
     @property
     def alpha(self):
+        """Inverse of the Grahame relation prefactor."""
         return 1.0 / jnp.sqrt(
             8
             * _constants.BOLTZMANN_CONSTANT
@@ -119,11 +134,13 @@ class NonLinearPoissonBoltzmann(BasePoissonBoltzmann):
 
     @property
     def a(self):
+        """Intermediate quantity for the non-linear PB closed-form solution."""
         sigma_alpha = (self.sigma * self.alpha).to(" ")
         return (jnp.sqrt(sigma_alpha**2 + 1) - 1) / sigma_alpha * self.exp_factor
 
     @property
     def phi(self):
+        """Non-linear PB potential profile in Volts."""
         _phi = (
             unxt.Quantity(jnp.arctanh(self.a).value, unit=" ")
             * 4

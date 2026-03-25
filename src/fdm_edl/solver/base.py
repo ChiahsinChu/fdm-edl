@@ -20,14 +20,18 @@ class RootSolveResult:
 
     Attributes
     ----------
-    solution : jax.Array
-        Converged (or best-effort) solution vector.
+    solution_int : unxt.Quantity
+        Raw converged (or best-effort) solution vector from the solver.
     converged : bool
         ``True`` if the solver met its convergence criterion.
     n_iter : int
         Number of iterations performed.
-    residual_norm : float
-        Euclidean norm of the residual evaluated at ``solution``.
+    residual : unxt.Quantity
+        Residual vector evaluated at ``solution_int``.
+    coordinate : unxt.Quantity or None
+        Grid coordinates, set after solving via :meth:`set_coordinate`.
+    solution : unxt.Quantity or None
+        Post-processed solution, set after solving via :meth:`set_solution`.
     """
 
     solution_int: unxt.Quantity
@@ -38,9 +42,23 @@ class RootSolveResult:
     solution: unxt.Quantity = None
 
     def set_coordinate(self, coordinate: unxt.Quantity) -> None:
+        """Attach grid coordinates to the result.
+
+        Parameters
+        ----------
+        coordinate : unxt.Quantity
+            Grid coordinates used in the solve.
+        """
         self.coordinate = coordinate
 
     def set_solution(self, solution: unxt.Quantity) -> None:
+        """Attach the post-processed solution to the result.
+
+        Parameters
+        ----------
+        solution : unxt.Quantity
+            Post-processed potential profile.
+        """
         self.solution = solution
 
 
@@ -49,13 +67,8 @@ class BaseSolver(ABC):
     Abstract factory and base class for nonlinear root-finding solvers.
 
     Calling ``BaseSolver(method=...)`` returns a concrete solver instance
-    selected from the registered sub-classes.
-
-    Parameters
-    ----------
-    method : str, optional
-        BaseSolver algorithm to instantiate (default: ``"newton"``).  Must
-        match a key registered in :attr:`_registry`.
+    selected from the registered sub-classes.  The *method* keyword
+    (default: ``"newton"``) must match a key in the internal registry.
 
     Raises
     ------

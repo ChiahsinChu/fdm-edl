@@ -44,7 +44,23 @@ class RobinBC(BoundaryCondition):
         self.neighbor_indices = raw_jnp.asarray(neighbor_indices)
 
     def apply_residual(self, residual, phi, coordinates):
-        """Enforce α·φ + β·∂φ/∂n = g."""
+        """Enforce α·φ + β·∂φ/∂n = g.
+
+        Parameters
+        ----------
+        residual : unxt.Quantity, shape (n_grid,)
+            Physics residual at every grid node.
+        phi : unxt.Quantity, shape (n_grid,)
+            Current potential at every grid node.
+        coordinates : unxt.Quantity
+            Grid coordinates (1-D).
+
+        Returns
+        -------
+        unxt.Quantity, shape (n_grid,)
+            Residual with Robin constraints applied at
+            ``self.node_indices``.
+        """
         x_bc = coordinates[self.node_indices]
         x_nb = coordinates[self.neighbor_indices]
         dx = x_bc - x_nb

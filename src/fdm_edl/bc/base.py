@@ -93,11 +93,40 @@ class DirichletBC(BoundaryCondition):
         The numerical difference ``(φ - φ₀)`` (in Volts) is placed into
         the residual with the same unit tag, so the Jacobian stays
         dimensionally consistent.
+
+        Parameters
+        ----------
+        residual : unxt.Quantity, shape (n_grid,)
+            Physics residual at every grid node.
+        phi : unxt.Quantity, shape (n_grid,)
+            Current potential at every grid node.
+        coordinates : unxt.Quantity
+            Grid coordinates (unused by Dirichlet, accepted for API
+            compatibility).
+
+        Returns
+        -------
+        unxt.Quantity, shape (n_grid,)
+            Residual with Dirichlet constraints applied at
+            ``self.node_indices``.
         """
         bc_value = (phi[self.node_indices] - self.values).to("V").value
         bc_residual = unxt.Quantity(bc_value, unit=residual.unit)
         return residual.at[self.node_indices].set(bc_residual)
 
     def apply_initial_guess(self, phi0):
+        """Seed the initial guess with the prescribed Dirichlet values.
+
+        Parameters
+        ----------
+        phi0 : unxt.Quantity, shape (n_grid,)
+            Initial guess for the potential at all grid nodes.
+
+        Returns
+        -------
+        unxt.Quantity, shape (n_grid,)
+            Modified initial guess with Dirichlet values inserted at
+            ``self.node_indices``.
+        """
         values_in_unit = unxt.Quantity(self.values.to("V").value, unit=phi0.unit)
         return phi0.at[self.node_indices].set(values_in_unit)

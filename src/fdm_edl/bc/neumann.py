@@ -44,9 +44,24 @@ class NeumannBC(BoundaryCondition):
         For each boundary node *i* with interior neighbor *j*, the
         residual is set to::
 
-            (φ[i] - φ[j]) / |x[i] - x[j]| · sign - flux_value
+            (φ[i] - φ[j]) / (x[i] - x[j]) - flux_value
 
-        where ``sign`` encodes the outward normal direction.
+        where the signed ``dx`` encodes the outward normal direction.
+
+        Parameters
+        ----------
+        residual : unxt.Quantity, shape (n_grid,)
+            Physics residual at every grid node.
+        phi : unxt.Quantity, shape (n_grid,)
+            Current potential at every grid node.
+        coordinates : unxt.Quantity
+            Grid coordinates (1-D).
+
+        Returns
+        -------
+        unxt.Quantity, shape (n_grid,)
+            Residual with Neumann constraints applied at
+            ``self.node_indices``.
         """
         x_bc = coordinates[self.node_indices]
         x_nb = coordinates[self.neighbor_indices]

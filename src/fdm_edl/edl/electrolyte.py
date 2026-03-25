@@ -87,7 +87,7 @@ class Electrolyte:
         -------
         unxt.Quantity
             Ionic strength, computed as
-            :math:`I = \frac{1}{2}\sum_i z_i^2 c_i`.
+            :math:`I = \frac{1}{2}\\sum_i z_i^2 c_i`.
         """
         ionic_strength = unxt.Q(0.0, "mol / L")
         if len(self.ions) > 0:

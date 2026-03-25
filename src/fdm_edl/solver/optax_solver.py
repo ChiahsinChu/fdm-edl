@@ -13,12 +13,30 @@ from fdm_edl.solver.base import BaseSolver, ResidualFunction, RootSolveResult
 
 class OptaxSolver(BaseSolver, methods=("optax", "adam", "sgd", "rmsprop")):
     """
-    Root-finding via minimization of 1/2 ||residual||^2 using Optax.
+    Root-finding via minimization of ½ ||residual||² using Optax.
+
+    Parameters
+    ----------
+    method : str or None, optional
+        Optax optimizer name: ``"adam"`` (default), ``"sgd"``, or
+        ``"rmsprop"``.
+    max_iter : int, optional
+        Maximum number of optimization steps (default: 200).
+    tol_step : float, optional
+        Convergence tolerance on the mean step norm (default: 1e-6).
+    tol_residual : float or None, optional
+        If given, also require the residual norm to be below this
+        threshold for convergence.
+    learning_rate : float, optional
+        Learning rate passed to the optimizer (default: 1e-2).
+    optimizer : optax.GradientTransformation or None, optional
+        Pre-built Optax optimizer.  When provided, *method* and
+        *learning_rate* are ignored.
 
     Notes
     -----
-    We minimize: loss(phi) = 0.5 * sum(residual(phi)^2)
-    and stop based on step norm (like NewtonSolver) and/or residual norm.
+    Minimises ``loss(φ) = 0.5 * Σ residual(φ)²`` and stops based on step
+    norm and, optionally, residual norm.
     """
 
     def __init__(
@@ -52,6 +70,23 @@ class OptaxSolver(BaseSolver, methods=("optax", "adam", "sgd", "rmsprop")):
     def solve(
         self, residual_fn: ResidualFunction, phi0: unxt.Quantity, *args
     ) -> RootSolveResult:
+        """Solve by gradient-based minimization of the residual norm.
+
+        Parameters
+        ----------
+        residual_fn : callable
+            Residual function with signature
+            ``residual_fn(phi, *args) -> unxt.Quantity``.
+        phi0 : unxt.Quantity
+            Initial guess for the solution.
+        *args
+            Extra positional arguments forwarded to *residual_fn*.
+
+        Returns
+        -------
+        RootSolveResult
+            Result containing the solution and solver diagnostics.
+        """
         phi_int = phi0
         opt_state = self.optimizer.init(phi_int)
         converged = False

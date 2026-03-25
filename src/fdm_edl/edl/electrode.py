@@ -8,6 +8,16 @@ from fdm_edl.utils.geometry import Geometry
 
 @dataclass(frozen=True)
 class Electrode:
+    """Electrode component of an EDL simulation.
+
+    Parameters
+    ----------
+    metal : str, optional
+        Metal element symbol (default: ``"Pt"``).
+    temperature : unxt.Quantity or None, optional
+        Absolute temperature (default: ``None``).
+    """
+
     metal: str = "Pt"
     temperature: unxt.Quantity = None  # in K
 
