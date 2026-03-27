@@ -16,7 +16,7 @@ class Ion:
     Parameters
     ----------
     name : str
-        Human-readable ion label (for example, ``"Na+"`` or ``"Cl-"``).
+        Human-readable ion label (for example, ``"Na"`` or ``"Cl"``).
     charge : unxt.Quantity
         Ionic charge as a quantity (typically in multiples of ``e``).
     molar_conc : unxt.Quantity

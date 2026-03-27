@@ -49,7 +49,7 @@ x = unxt.Quantity(jnp.linspace(0, 50, n_grid), "nm")
 
 # 3. Define boundary conditions
 bcs = [
-    DirichletBC([0], unxt.Quantity(0.1, "V")),          # electrode potential
+    DirichletBC([0], unxt.Quantity(0.1, "V")),  # electrode potential
     DirichletBC([n_grid - 1], unxt.Quantity(0.0, "V")),  # bulk solution
 ]
 
@@ -57,7 +57,7 @@ bcs = [
 edl.compute(x, bcs)
 
 # 5. Post-process
-phi = edl.result.solution                       # potential profile
+phi = edl.result.solution  # potential profile
 ion_conc = edl.get_ion_concentration_profiles()  # dict of ion concentrations
 ```
 
@@ -86,13 +86,13 @@ Parameters are loaded from a JSON or YAML file:
 }
 ```
 
-| Field | Description |
-|---|---|
-| `temperature` | System temperature with unit |
-| `electrolyte.epsilon_r` | Relative permittivity of the solvent (default: 78.5) |
-| `electrolyte.ions` | Dict of ions, each with `molar_conc` and `charge` |
-| `solver.method` | `"newton"`, `"adam"`, `"sgd"`, or `"rmsprop"` |
-| `solver.max_iter` / `solver.tol` | Convergence controls |
+| Field                            | Description                                          |
+| -------------------------------- | ---------------------------------------------------- |
+| `temperature`                    | System temperature with unit                         |
+| `electrolyte.epsilon_r`          | Relative permittivity of the solvent (default: 78.5) |
+| `electrolyte.ions`               | Dict of ions, each with `molar_conc` and `charge`    |
+| `solver.method`                  | `"newton"`, `"adam"`, `"sgd"`, or `"rmsprop"`        |
+| `solver.max_iter` / `solver.tol` | Convergence controls                                 |
 
 ## Package Structure
 

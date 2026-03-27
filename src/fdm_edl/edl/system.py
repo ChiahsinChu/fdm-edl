@@ -11,6 +11,7 @@ import unxt
 from fdm_edl.bc import BoundaryCondition
 from fdm_edl.edl.electrode import Electrode
 from fdm_edl.edl.electrolyte import Electrolyte, Ion
+from fdm_edl.edl.models import BikermanModel, ChargeModel, create_charge_model
 from fdm_edl.operators import LaplacianOperator, LaplacianOperator1D
 from fdm_edl.solver.base import BaseSolver
 from fdm_edl.utils import load_dict, to_unxtq
@@ -89,6 +90,7 @@ class ElectricalDoubleLayer:
 
         self.set_electrode(self._params.get("electrode", {}))
         self.set_electrolyte(self._params.get("electrolyte", {}))
+        self.set_model(self._params.get("model", {}))
         self.set_solver(self._params.get("solver", {}))
 
         # placeholders for results
@@ -134,6 +136,9 @@ class ElectricalDoubleLayer:
                     name=name,
                     charge=to_unxtq(data["charge"]),
                     molar_conc=to_unxtq(data["molar_conc"]),
+                    **(
+                        {"radius": to_unxtq(data["radius"])} if "radius" in data else {}
+                    ),
                 )
                 for name, data in _params.get("ions", {}).items()
             ],
@@ -141,6 +146,18 @@ class ElectricalDoubleLayer:
             "temperature": self.temperature,
         }
         self.electrolyte = Electrolyte(**params)
+
+    def set_model(self, _params: dict):
+        """Set the charge-density model.
+
+        Parameters
+        ----------
+        _params : dict
+            Must contain ``"type"`` (str) matching a registered model
+            name (default ``"boltzmann"``).  Remaining keys are forwarded
+            to the model constructor.
+        """
+        self.charge_model: ChargeModel = create_charge_model(_params)
 
     def set_solver(self, _params: dict):
         """
@@ -256,25 +273,15 @@ class ElectricalDoubleLayer:
         # --- Laplacian -------------------------------------------------------
         d2phi = laplacian(phi)
 
-        # --- Boltzmann charge density ----------------------------------------
-        phi_V = phi.to("V")
-        rho_ion = unxt.Quantity(0.0, "C / m^3")
-        for ion in self.electrolyte.ions:
-            charge = ion.charge.to("C")
-            bulk_concentration = ion.molar_conc.to("mol/m^3")
-            exponent = (
-                -charge * phi_V / (_constants.BOLTZMANN_CONSTANT * self.temperature)
-            ).to("")
-            rho_ion += (
-                charge
-                * bulk_concentration
-                * _constants.AVOGADRO_NUMBER
-                * jnp.exp(exponent)
-            )
+        # --- Ionic charge density (delegated to charge model) ----------------
+        rho_ion = self.charge_model.charge_density(
+            phi, self.electrolyte, self.temperature
+        )
 
         # --- Physics residual at all nodes -----------------------------------
         residual = d2phi + rho_ion / self.electrolyte.epsilon
 
+        # todo: check the application of BCs
         # --- Apply boundary conditions (overwrite BC-node entries) -----------
         # Flatten coordinates for 1-D BCs that expect a 1-D array
         coords_for_bc = (
@@ -307,13 +314,19 @@ class ElectricalDoubleLayer:
                 "Must call compute() before get_ion_concentration_profiles()"
             )
 
-        conc_profiles = {}
-        for ion in self.electrolyte.ions:
-            valency = (ion.charge.to("C") / _constants.ELEMENTARY_CHARGE).to("").value
-            conc_profiles[ion.name] = ion.molar_conc * boltzmann_factor(
-                phi=self.result.solution, temperature=self.temperature, valency=valency
+        phi = self.result.solution
+
+        # Bikerman needs the full electrolyte to compute the denominator
+        if isinstance(self.charge_model, BikermanModel):
+            return self.charge_model.ion_concentration_full(
+                phi, self.electrolyte, self.temperature
             )
 
+        conc_profiles = {}
+        for ion in self.electrolyte.ions:
+            conc_profiles[ion.name] = self.charge_model.ion_concentration(
+                phi, ion, self.temperature
+            )
         return conc_profiles
 
     # def plot(self):
