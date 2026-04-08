@@ -17,9 +17,6 @@ def _linear_exponent(x: unxt.Quantity, debye_length: unxt.Quantity) -> unxt.Quan
     return jnp.exp(-(x / debye_length))
 
 
-# todo: control phi(0) via rather than sigma
-
-
 class BasePoissonBoltzmann:
     """Shared utilities for analytical Poisson-Boltzmann models in 1D."""
 
@@ -42,19 +39,37 @@ class BasePoissonBoltzmann:
         # placeholders for results to be computed in compute()
         self.edl_status = None
 
+    def phi0_to_sigma(
+        self,
+        phi_0: unxt.Quantity,
+    ) -> unxt.Quantity:
+        """Convert surface potential to surface charge density.
+
+        Parameters
+        ----------
+        phi_0 : unxt.Quantity
+            Surface potential at x = 0.
+
+        Returns
+        -------
+        unxt.Quantity
+            Surface charge density.
+        """
+        raise NotImplementedError("Subclasses must implement phi0_to_sigma().")
+
     def compute(
         self,
         x: unxt.Quantity,
-        sigma: unxt.Quantity,
+        phi_0: unxt.Quantity,
     ):
-        """...
+        """Evaluate the analytical PB solution.
 
         Parameters
         ----------
         x : unxt.Quantity
             Spatial coordinates at which to evaluate the solution.
-        sigma : unxt.Quantity
-            Surface charge density.
+        phi_0 : unxt.Quantity
+            Surface potential at x = 0.
         """
         raise NotImplementedError("Subclasses must implement the compute() method.")
 
@@ -62,56 +77,58 @@ class BasePoissonBoltzmann:
 class LinearPoissonBoltzmann(BasePoissonBoltzmann):
     """Analytical linearized Poisson-Boltzmann profile in 1D.
 
-    Users provide an ElectricalDoubleLayer object and can optionally provide
-    custom spatial coordinates and surface charge density.
+    Users provide an ElectricalDoubleLayer object, a surface potential
+    phi_0, and spatial coordinates.
     """
+
+    def phi0_to_sigma(
+        self,
+        phi_0: unxt.Quantity,
+    ) -> unxt.Quantity:
+        """sigma = phi_0 * epsilon / lambda_D."""
+        epsilon = self.edl_obj.electrolyte.epsilon
+        debye_length = self.edl_obj.electrolyte.debye_length
+        return (phi_0 * epsilon / debye_length).to(cds.e / unxt.unit("angstrom^2"))
 
     @staticmethod
     @jax.jit
-    def compute_phi(x, sigma, debye_length, epsilon):
-        exp_factor = _linear_exponent(x, debye_length)
-        # Linearised PB potential profile [Volts].
-        phi = sigma * debye_length / epsilon * exp_factor
-        return phi
+    def compute_phi(x, phi_0, debye_length):
+        return phi_0 * _linear_exponent(x, debye_length)
 
     def compute(
         self,
         x: unxt.Quantity,
-        sigma: unxt.Quantity,
+        phi_0: unxt.Quantity,
     ):
-        """...
+        """Evaluate the linearised PB solution.
 
         Parameters
         ----------
         x : unxt.Quantity
             Spatial coordinates at which to evaluate the solution.
-        sigma : unxt.Quantity
-            Surface charge density.
+        phi_0 : unxt.Quantity
+            Surface potential at x = 0.
         """
-
         _x = x.to("angstrom")
         debye_length = self.edl_obj.electrolyte.debye_length.to("angstrom")
-        epsilon = self.edl_obj.electrolyte.epsilon
-        phi = self.compute_phi(
-            _x,
-            sigma,
-            debye_length,
-            epsilon,
-        ).to("V")
+        sigma = self.phi0_to_sigma(phi_0)
+
+        phi = self.compute_phi(_x, phi_0, debye_length).to("V")
         compute_e_field = qjax.vmap(
-            qjax.grad(self.compute_phi, argnums=0), in_axes=(0, None, None, None)
+            qjax.grad(self.compute_phi, argnums=0), in_axes=(0, None, None)
         )
-        efield = -compute_e_field(_x, sigma, debye_length, epsilon).to("V/m")
+        efield = -compute_e_field(_x, phi_0, debye_length).to("V/m")
 
         # Linearised PB charge density profile [mol/L].
-        _rho = sigma / debye_length * _linear_exponent(_x, debye_length)
+        epsilon = self.edl_obj.electrolyte.epsilon
+        _rho = (phi_0 * epsilon / debye_length**2) * _linear_exponent(_x, debye_length)
         rho = (_rho / (_constants.ELEMENTARY_CHARGE * _constants.AVOGADRO_NUMBER)).to(
             "mol/L"
         )
 
         self.edl_status = EDLStatus(
             coordinate=x.to("angstrom"),
-            sigma=sigma.to(cds.e / unxt.unit("angstrom^2")),
+            sigma=sigma,
             phi=phi,
             efield=efield,
             rho=rho,
@@ -179,34 +196,13 @@ class NonLinearPoissonBoltzmann(BasePoissonBoltzmann):
             jnp.abs(z0), unit=cds.e
         )  # return bulk concentration and valence magnitude
 
-    @staticmethod
-    @jax.jit
-    def compute_phi(x, sigma_alpha, debye_length, beta, valency):
-        exp_factor = jnp.exp(-(x / debye_length))
-        a = (jnp.sqrt(sigma_alpha**2 + 1) - 1) / sigma_alpha * exp_factor
-        # Non-linear PB potential profile [Volts].
-        _phi = 4 * jnp.arctanh(a) / beta / valency
-        return _phi
-
-    def compute(
+    def phi0_to_sigma(
         self,
-        x: unxt.Quantity,
-        sigma: unxt.Quantity,
-    ):
-        """...
-
-        Parameters
-        ----------
-        x : unxt.Quantity
-            Spatial coordinates at which to evaluate the solution.
-        sigma : unxt.Quantity
-            Surface charge density.
-        """
-        _x = x.to("angstrom")
-        debye_length = self.edl_obj.electrolyte.debye_length.to("angstrom")
+        phi_0: unxt.Quantity,
+    ) -> unxt.Quantity:
+        """Grahame equation: sigma = sqrt(8 eps k_B T c_0 N_A) sinh(z e phi_0 / 2 k_B T)."""
         epsilon = self.edl_obj.electrolyte.epsilon
-        # Inverse of the Grahame relation prefactor.
-        alpha = 1.0 / jnp.sqrt(
+        grahame_prefactor = jnp.sqrt(
             8
             * _constants.BOLTZMANN_CONSTANT
             * self.edl_obj.temperature
@@ -214,13 +210,37 @@ class NonLinearPoissonBoltzmann(BasePoissonBoltzmann):
             * self.bulk_concentration
             * _constants.AVOGADRO_NUMBER
         )
-        # Intermediate quantity for the non-linear PB closed-form solution.
-        sigma_alpha = (sigma * alpha).to("")
-        beta = 1.0 / (self.edl_obj.temperature * _constants.BOLTZMANN_CONSTANT).to("eV")
+        arg = (self.valency * self.beta * phi_0 / 2).to("")
+        return (grahame_prefactor * jnp.sinh(arg)).to(cds.e / unxt.unit("angstrom^2"))
+
+    @staticmethod
+    @jax.jit
+    def compute_phi(x, phi_0, debye_length, beta, valency):
+        gamma = jnp.tanh(beta * valency * phi_0 / 4)
+        return 4 * jnp.arctanh(gamma * jnp.exp(-(x / debye_length))) / beta / valency
+
+    def compute(
+        self,
+        x: unxt.Quantity,
+        phi_0: unxt.Quantity,
+    ):
+        """Evaluate the non-linear PB solution.
+
+        Parameters
+        ----------
+        x : unxt.Quantity
+            Spatial coordinates at which to evaluate the solution.
+        phi_0 : unxt.Quantity
+            Surface potential at x = 0.
+        """
+        _x = x.to("angstrom")
+        debye_length = self.edl_obj.electrolyte.debye_length.to("angstrom")
+        beta = self.beta
+        sigma = self.phi0_to_sigma(phi_0)
 
         _phi = self.compute_phi(
             _x,
-            sigma_alpha,
+            phi_0,
             debye_length,
             beta,
             self.valency,
@@ -230,14 +250,14 @@ class NonLinearPoissonBoltzmann(BasePoissonBoltzmann):
             qjax.grad(self.compute_phi), in_axes=(0, None, None, None, None)
         )(
             _x,
-            sigma_alpha,
+            phi_0,
             debye_length,
             beta,
             self.valency,
         )
         self.edl_status = EDLStatus(
             coordinate=x.to("angstrom"),
-            sigma=sigma.to(cds.e / unxt.unit("angstrom^2")),
+            sigma=sigma,
             phi=phi,
             efield=efield.to("V/Angstrom"),
             rho=None,
@@ -256,12 +276,14 @@ class NonLinearPoissonBoltzmann(BasePoissonBoltzmann):
 if __name__ == "__main__":
     edl_obj = ElectricalDoubleLayer("input.json")
     x = unxt.Quantity(jnp.linspace(0, 50.0, 500), unit="nm")
-    sigma = _constants.ELEMENTARY_CHARGE / unxt.Quantity(1e4, "angstrom^2")
+    phi_0 = unxt.Quantity(0.025, "V")
 
     linear_pb = LinearPoissonBoltzmann(edl_obj=edl_obj)
-    linear_pb.compute(x=x, sigma=sigma)
+    linear_pb.compute(x=x, phi_0=phi_0)
     # potential in V
     print(linear_pb.edl_status.phi)
+    # sigma derived from phi_0
+    print(linear_pb.edl_status.sigma)
     # charge density in mol/L
     print(linear_pb.edl_status.rho)
     # ion conc in mol/L
@@ -270,9 +292,11 @@ if __name__ == "__main__":
     print(c_cation, c_anion)
 
     non_linear_pb = NonLinearPoissonBoltzmann(edl_obj=edl_obj)
-    non_linear_pb.compute(x=x, sigma=sigma)
+    non_linear_pb.compute(x=x, phi_0=phi_0)
     # potential in V
     print(non_linear_pb.edl_status.phi)
+    # sigma derived from Grahame equation
+    print(non_linear_pb.edl_status.sigma)
     # ion conc in mol/L
     c_cation = non_linear_pb.edl_status.ion_conc[edl_obj.electrolyte.ions[0].name]
     c_anion = non_linear_pb.edl_status.ion_conc[edl_obj.electrolyte.ions[1].name]

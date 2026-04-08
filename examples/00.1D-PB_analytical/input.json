@@ -7,23 +7,23 @@
   "electrolyte": {
     "epsilon_r": 78.5,
     "ions": {
-      "Na": {
+      "Ca": {
         "molar_conc": {
           "value": 0.01,
           "unit": "mol/L"
         },
         "charge": {
-          "value": 1.0,
+          "value": 2.0,
           "unit": "e"
         }
       },
-      "Cl": {
+      "SO4": {
         "molar_conc": {
           "value": 0.01,
           "unit": "mol/L"
         },
         "charge": {
-          "value": -1.0,
+          "value": -2.0,
           "unit": "e"
         }
       }
