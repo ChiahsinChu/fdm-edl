@@ -3,11 +3,14 @@
 
 from __future__ import annotations
 
+from typing import Literal, Sequence
+
 import jax
 import optax
 import quaxed.numpy as jnp
 import unxt
 
+from fdm_edl.bc import BoundaryCondition
 from fdm_edl.solver.base import BaseSolver, ResidualFunction, RootSolveResult
 
 
@@ -32,6 +35,18 @@ class OptaxSolver(BaseSolver, methods=("optax", "adam", "sgd", "rmsprop")):
     optimizer : optax.GradientTransformation or None, optional
         Pre-built Optax optimizer.  When provided, *method* and
         *learning_rate* are ignored.
+    bc_enforcement : ``"hard"`` or ``"penalty"``, optional
+        How boundary conditions are enforced (default: ``"hard"``).
+
+        * ``"hard"`` – BCs overwrite the residual at boundary nodes
+          (original behaviour).
+        * ``"penalty"`` – BCs are enforced via a PINN-style penalty
+          term added to the loss.  The physics residual is kept at all
+          nodes (including boundary nodes) and the total loss becomes
+          ``L_physics + penalty_weight * L_BC``.
+    penalty_weight : float, optional
+        Weight λ for the BC penalty term (default: 1.0).  Only used
+        when ``bc_enforcement="penalty"``.
 
     Notes
     -----
@@ -47,11 +62,15 @@ class OptaxSolver(BaseSolver, methods=("optax", "adam", "sgd", "rmsprop")):
         tol_residual: float | None = None,
         learning_rate: float = 1e-2,
         optimizer: optax.GradientTransformation | None = None,
+        bc_enforcement: Literal["hard", "penalty"] = "hard",
+        penalty_weight: float = 1.0,
     ):
         self.max_iter = max_iter
         self.tol_step = tol_step
         self.tol_residual = tol_residual
         self.learning_rate = learning_rate
+        self.bc_enforcement = bc_enforcement
+        self.penalty_weight = penalty_weight
 
         # Choose an optimizer if one wasn't provided
         if optimizer is not None:
@@ -68,7 +87,12 @@ class OptaxSolver(BaseSolver, methods=("optax", "adam", "sgd", "rmsprop")):
                 raise ValueError(f"Unknown optax method '{method}'.")
 
     def solve(
-        self, residual_fn: ResidualFunction, phi0: unxt.Quantity, *args
+        self,
+        residual_fn: ResidualFunction,
+        phi0: unxt.Quantity,
+        *args,
+        boundary_conditions: Sequence[BoundaryCondition] | None = None,
+        coordinates: unxt.Quantity | None = None,
     ) -> RootSolveResult:
         """Solve by gradient-based minimization of the residual norm.
 
@@ -81,6 +105,13 @@ class OptaxSolver(BaseSolver, methods=("optax", "adam", "sgd", "rmsprop")):
             Initial guess for the solution.
         *args
             Extra positional arguments forwarded to *residual_fn*.
+        boundary_conditions : sequence of BoundaryCondition or None
+            Required when ``bc_enforcement="penalty"``.  The BC objects
+            whose :meth:`compute_violation` methods will supply the
+            penalty loss terms.
+        coordinates : unxt.Quantity or None
+            Grid coordinates passed to :meth:`compute_violation`.
+            Required when ``bc_enforcement="penalty"``.
 
         Returns
         -------
@@ -91,11 +122,33 @@ class OptaxSolver(BaseSolver, methods=("optax", "adam", "sgd", "rmsprop")):
         opt_state = self.optimizer.init(phi_int)
         converged = False
 
-        def loss_fn(phi: unxt.Quantity) -> jax.Array:
-            # residual is a Quantity (vector)
-            res = residual_fn(phi, *args)
-            # scalar, unit: (res.unit)^2
-            return 0.5 * jnp.sum(res * res)
+        if self.bc_enforcement == "penalty":
+            if boundary_conditions is None or coordinates is None:
+                raise ValueError(
+                    "boundary_conditions and coordinates are required "
+                    "when bc_enforcement='penalty'."
+                )
+            # Flatten coordinates for 1-D BCs
+            coords_for_bc = (
+                coordinates[:, 0]
+                if coordinates.ndim == 2 and coordinates.shape[1] == 1
+                else coordinates
+            )
+            lam = self.penalty_weight
+
+            def loss_fn(phi: unxt.Quantity) -> jax.Array:
+                res = residual_fn(phi, *args)
+                physics_loss = 0.5 * jnp.mean(res * res)
+                bc_loss = jnp.zeros_like(physics_loss)
+                for bc in boundary_conditions:
+                    v = bc.compute_violation(phi, coords_for_bc)
+                    bc_loss = bc_loss + 0.5 * jnp.mean(v * v)
+                return physics_loss + lam * bc_loss
+        else:
+
+            def loss_fn(phi: unxt.Quantity) -> jax.Array:
+                res = residual_fn(phi, *args)
+                return 0.5 * jnp.sum(res * res)
 
         # value_and_grad works with pytrees; should work with unxt.Quantity if it's a pytree.
         value_and_grad = jax.value_and_grad(loss_fn)

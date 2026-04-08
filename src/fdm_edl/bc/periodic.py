@@ -40,3 +40,7 @@ class PeriodicBC(BoundaryCondition):
         bc_value = (phi[self.node_indices] - phi[self.partner_indices]).to("V").value
         bc_residual = unxt.Quantity(bc_value, unit=residual.unit)
         return residual.at[self.node_indices].set(bc_residual)
+
+    def compute_violation(self, phi, coordinates):
+        """Return φ[left] - φ[right] at the periodic nodes."""
+        return (phi[self.node_indices] - phi[self.partner_indices]).to("V")

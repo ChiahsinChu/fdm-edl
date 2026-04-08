@@ -52,6 +52,33 @@ class BoundaryCondition(ABC):
         """
         ...
 
+    @abstractmethod
+    def compute_violation(
+        self,
+        phi: unxt.Quantity,
+        coordinates: unxt.Quantity,
+    ) -> unxt.Quantity:
+        """Compute the BC violation at this BC's nodes.
+
+        Returns the constraint error (in the BC's natural units) at
+        the boundary nodes only, without modifying the global residual.
+        Used by the PINN-style penalty loss in
+        :class:`~fdm_edl.solver.OptaxSolver`.
+
+        Parameters
+        ----------
+        phi : unxt.Quantity, shape (n_grid,)
+            Current potential at every grid node.
+        coordinates : unxt.Quantity, shape (n_grid,) or (n_grid, n_dim)
+            Grid coordinates.
+
+        Returns
+        -------
+        unxt.Quantity, shape (n_bc_nodes,)
+            Constraint violation at each boundary node.
+        """
+        ...
+
     def apply_initial_guess(self, phi0: unxt.Quantity) -> unxt.Quantity:
         """Optionally set initial values at BC nodes.
 
@@ -113,6 +140,10 @@ class DirichletBC(BoundaryCondition):
         bc_value = (phi[self.node_indices] - self.values).to("V").value
         bc_residual = unxt.Quantity(bc_value, unit=residual.unit)
         return residual.at[self.node_indices].set(bc_residual)
+
+    def compute_violation(self, phi, coordinates):
+        """Return φ[i] - φ₀ at the Dirichlet nodes."""
+        return (phi[self.node_indices] - self.values).to("V")
 
     def apply_initial_guess(self, phi0):
         """Seed the initial guess with the prescribed Dirichlet values.

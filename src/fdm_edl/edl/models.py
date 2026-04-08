@@ -17,8 +17,8 @@ import unxt
 from .. import _constants
 
 if TYPE_CHECKING:
+    from ..benchmark.base import boltzmann_factor
     from .electrolyte import Electrolyte, Ion
-    from .system import boltzmann_factor
 
 
 # ---------------------------------------------------------------------------

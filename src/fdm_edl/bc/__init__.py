@@ -5,6 +5,7 @@ from .base import BoundaryCondition, DirichletBC
 from .neumann import NeumannBC
 from .periodic import PeriodicBC
 from .robin import RobinBC
+from .stern import SternLayerBC
 
 __all__ = [
     "BoundaryCondition",
@@ -12,4 +13,5 @@ __all__ = [
     "NeumannBC",
     "PeriodicBC",
     "RobinBC",
+    "SternLayerBC",
 ]

@@ -8,8 +8,8 @@ import unxt
 
 from fdm_edl import _constants
 from fdm_edl.bc import DirichletBC
+from fdm_edl.benchmark import NonLinearPoissonBoltzmann
 from fdm_edl.edl import ElectricalDoubleLayer
-from fdm_edl.test import NonLinearPoissonBoltzmann
 
 
 class TestNonLinearPoissonBoltzmannSolution(unittest.TestCase):
@@ -23,11 +23,10 @@ class TestNonLinearPoissonBoltzmannSolution(unittest.TestCase):
         sigma = _constants.ELEMENTARY_CHARGE / unxt.Quantity(1e4, "angstrom^2")
 
         # analytical solution
-        non_linear_pb = NonLinearPoissonBoltzmann(
-            edl_obj=self.edl_obj, x=x, sigma=sigma
-        )
+        non_linear_pb = NonLinearPoissonBoltzmann(edl_obj=self.edl_obj)
+        non_linear_pb.compute(x=x, sigma=sigma)
         # numerical solution
-        phi_wall = non_linear_pb.phi[0]
+        phi_wall = non_linear_pb.edl_status.phi[0]
         boundary_conditions = [
             DirichletBC(
                 [0],
@@ -41,7 +40,7 @@ class TestNonLinearPoissonBoltzmannSolution(unittest.TestCase):
         self.edl_obj.compute(x, boundary_conditions)
 
         np.testing.assert_allclose(
-            non_linear_pb.phi.value,
+            non_linear_pb.edl_status.phi.value,
             self.edl_obj.result.solution.value,
             atol=1e-5,
             rtol=1e-5,

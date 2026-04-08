@@ -75,3 +75,13 @@ class NeumannBC(BoundaryCondition):
         bc_value = (fd_deriv - self.flux_values).to("V/m").value
         bc_residual = unxt.Quantity(bc_value, unit=residual.unit)
         return residual.at[self.node_indices].set(bc_residual)
+
+    def compute_violation(self, phi, coordinates):
+        """Return (∂φ/∂n - g) at the Neumann nodes."""
+        x_bc = coordinates[self.node_indices]
+        x_nb = coordinates[self.neighbor_indices]
+        dx = x_bc - x_nb
+        phi_bc = phi[self.node_indices]
+        phi_nb = phi[self.neighbor_indices]
+        fd_deriv = (phi_bc - phi_nb) / dx
+        return (fd_deriv - self.flux_values).to("V/m")

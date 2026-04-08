@@ -14,6 +14,7 @@ from fdm_edl.edl.electrolyte import Electrolyte, Ion
 from fdm_edl.edl.models import BikermanModel, ChargeModel, create_charge_model
 from fdm_edl.operators import LaplacianOperator, LaplacianOperator1D
 from fdm_edl.solver.base import BaseSolver
+from fdm_edl.solver.optax_solver import OptaxSolver
 from fdm_edl.utils import load_dict, to_unxtq
 
 from .. import _constants
@@ -95,6 +96,7 @@ class ElectricalDoubleLayer:
 
         # placeholders for results
         self.result = None
+        self._apply_bcs = True
 
     def set_electrode(self, _params: dict):
         """
@@ -227,13 +229,30 @@ class ElectricalDoubleLayer:
             phi0 = bc.apply_initial_guess(phi0)
 
         # --- Solve -----------------------------------------------------------
-        result = self.solver.solve(
-            self.get_residual,
-            phi0,
-            laplacian,
-            boundary_conditions,
-            coordinates_2d,
+        use_penalty = (
+            isinstance(self.solver, OptaxSolver)
+            and self.solver.bc_enforcement == "penalty"
         )
+        if use_penalty:
+            self._apply_bcs = False
+        try:
+            result = self.solver.solve(
+                self.get_residual,
+                phi0,
+                laplacian,
+                boundary_conditions,
+                coordinates_2d,
+                **(
+                    {
+                        "boundary_conditions": boundary_conditions,
+                        "coordinates": coordinates_2d,
+                    }
+                    if use_penalty
+                    else {}
+                ),
+            )
+        finally:
+            self._apply_bcs = True
         result.set_coordinate(coordinates)
         result.set_solution(result.solution_int)
 
@@ -281,16 +300,16 @@ class ElectricalDoubleLayer:
         # --- Physics residual at all nodes -----------------------------------
         residual = d2phi + rho_ion / self.electrolyte.epsilon
 
-        # todo: check the application of BCs
-        # --- Apply boundary conditions (overwrite BC-node entries) -----------
-        # Flatten coordinates for 1-D BCs that expect a 1-D array
-        coords_for_bc = (
-            coordinates[:, 0]
-            if coordinates.ndim == 2 and coordinates.shape[1] == 1
-            else coordinates
-        )
-        for bc in boundary_conditions:
-            residual = bc.apply_residual(residual, phi, coords_for_bc)
+        # --- Apply boundary conditions -----------
+        if self._apply_bcs:
+            # Flatten coordinates for 1-D BCs that expect a 1-D array
+            coords_for_bc = (
+                coordinates[:, 0]
+                if coordinates.ndim == 2 and coordinates.shape[1] == 1
+                else coordinates
+            )
+            for bc in boundary_conditions:
+                residual = bc.apply_residual(residual, phi, coords_for_bc)
 
         return residual
 
