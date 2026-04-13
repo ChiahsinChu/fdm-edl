@@ -5,61 +5,43 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable, ClassVar
+from typing import Callable, ClassVar, Sequence
 
-import quaxed.numpy as jnp
-import unxt
+import jax
+from jax import numpy as jnp
+
+from ..utils.bc import BoundaryCondition
 
 ResidualFunction = Callable[..., jnp.ndarray]
 
 
-@dataclass
+@dataclass(frozen=True)
 class RootSolveResult:
     """
     Container for the output of a nonlinear root-finding solve.
 
     Attributes
     ----------
-    solution_int : unxt.Quantity
-        Raw converged (or best-effort) solution vector from the solver.
+    solution : jax.Array
+        Converged (or best-effort) solution vector from the solver.
     converged : bool
         ``True`` if the solver met its convergence criterion.
     n_iter : int
         Number of iterations performed.
-    residual : unxt.Quantity
-        Residual vector evaluated at ``solution_int``.
-    coordinate : unxt.Quantity or None
-        Grid coordinates, set after solving via :meth:`set_coordinate`.
-    solution : unxt.Quantity or None
-        Post-processed solution, set after solving via :meth:`set_solution`.
+    residual : jax.Array
+        Residual vector evaluated at ``solution``.
     """
 
-    solution_int: unxt.Quantity
+    solution: jax.Array
     converged: bool
     n_iter: int
-    residual: unxt.Quantity
-    coordinate: unxt.Quantity = None
-    solution: unxt.Quantity = None
+    residual: jax.Array
 
-    def set_coordinate(self, coordinate: unxt.Quantity) -> None:
-        """Attach grid coordinates to the result.
-
-        Parameters
-        ----------
-        coordinate : unxt.Quantity
-            Grid coordinates used in the solve.
-        """
-        self.coordinate = coordinate
-
-    def set_solution(self, solution: unxt.Quantity) -> None:
-        """Attach the post-processed solution to the result.
-
-        Parameters
-        ----------
-        solution : unxt.Quantity
-            Post-processed potential profile.
-        """
-        self.solution = solution
+    def __post_init__(self):
+        assert self.n_iter >= 0, "n_iter must be non-negative"
+        assert (
+            self.solution.shape == self.residual.shape
+        ), "solution and residual must have the same shape"
 
 
 class BaseSolver(ABC):
@@ -97,7 +79,11 @@ class BaseSolver(ABC):
 
     @abstractmethod
     def solve(
-        self, residual_fn: ResidualFunction, phi0: unxt.Quantity, *args
+        self,
+        residual_fn: ResidualFunction,
+        phi: jax.Array,
+        boundary_conditions: Sequence[BoundaryCondition],
+        *args,
     ) -> RootSolveResult:
         """
         Solve the nonlinear system ``residual_fn(phi, *args) = 0``.
@@ -107,8 +93,10 @@ class BaseSolver(ABC):
         residual_fn : callable
             Residual function with signature
             ``residual_fn(phi, *args) -> jax.Array``.
-        phi0 : jax.Array
+        phi : jax.Array
             Initial guess for the solution.
+        boundary_conditions : Sequence[BoundaryCondition]
+            List of boundary conditions to apply during the solve.
         *args
             Extra positional arguments forwarded to *residual_fn*.
 

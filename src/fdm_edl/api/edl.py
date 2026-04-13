@@ -5,19 +5,20 @@ import copy
 import pathlib
 from typing import Sequence
 
-import quaxed.numpy as jnp
+import jax
+import jax.numpy as jnp
 import unxt
 
-from fdm_edl.bc import BoundaryCondition
-from fdm_edl.edl.electrode import Electrode
-from fdm_edl.edl.electrolyte import Electrolyte, Ion
-from fdm_edl.edl.models import BikermanModel, ChargeModel, create_charge_model
-from fdm_edl.operators import LaplacianOperator, LaplacianOperator1D
-from fdm_edl.solver.base import BaseSolver
-from fdm_edl.solver.optax_solver import OptaxSolver
-from fdm_edl.utils import load_dict, to_unxtq
-
-from .. import _constants
+from ..models import ChargeModel, create_charge_model
+from ..models.base import charge_density_profile
+from ..solver.base import BaseSolver
+from ..utils import constants, load_dict
+from ..utils import unit_conversion as uc
+from ..utils.bc import BoundaryCondition
+from ..utils.grad import GradLaplacian1D
+from ..utils.output import EDLStatus
+from .electrode import Electrode
+from .electrolyte import Electrolyte, Ion
 
 
 class ElectricalDoubleLayer:
@@ -52,7 +53,7 @@ class ElectricalDoubleLayer:
 
     Attributes
     ----------
-    temperature : unxt.Quantity
+    temperature : float
         System temperature.
     dim : int
         Spatial dimension of the model (default: 1).
@@ -82,9 +83,17 @@ class ElectricalDoubleLayer:
         else:
             raise ValueError("params must be a dict or a path to a yaml/json file")
 
+        self._unit_system = self._params.pop("unit", "metal")
+
         # get mandatory global parameters and set as attributes
         try:
-            self.temperature = to_unxtq(self._params["temperature"])
+            self._temperature: float = self._params[
+                "temperature"
+            ] * uc.get_conversion_factor("temperature", self._unit_system)
+            self.temperature = unxt.Quantity(
+                self._params["temperature"],
+                unit=uc.UNIT_SYSTEMS[self._unit_system]["temperature"],
+            )
         except KeyError:
             raise ValueError("`temperature` is required.")
         self.dim: int = self._params.pop("dim", 1)
@@ -96,7 +105,7 @@ class ElectricalDoubleLayer:
 
         # placeholders for results
         self.result = None
-        self._apply_bcs = True
+        self._solver_result = None
 
     def set_electrode(self, _params: dict):
         """
@@ -132,21 +141,40 @@ class ElectricalDoubleLayer:
             ``epsilon_r`` : float, optional
                 Relative permittivity of the solvent (default: 78.5).
         """
+        epsilon_r = _params.get("epsilon_r", 78.5)
         params = {
-            "ions": [
-                Ion(
+            "ions": {
+                name: Ion(
                     name=name,
-                    charge=to_unxtq(data["charge"]),
-                    molar_conc=to_unxtq(data["molar_conc"]),
-                    **(
-                        {"radius": to_unxtq(data["radius"])} if "radius" in data else {}
+                    charge=unxt.Quantity(
+                        data["charge"],
+                        unit=uc.UNIT_SYSTEMS[self._unit_system]["electrical charge"],
+                    ),
+                    molar_conc=unxt.Quantity(
+                        data["molar_conc"],
+                        "mol / L",
+                    ),
+                    radius=(
+                        unxt.Quantity(
+                            data["radius"],
+                            unit=uc.UNIT_SYSTEMS[self._unit_system]["length"],
+                        )
+                        if "radius" in data
+                        else unxt.Quantity(
+                            0.0, unit=uc.UNIT_SYSTEMS[self._unit_system]["length"]
+                        )
                     ),
                 )
                 for name, data in _params.get("ions", {}).items()
-            ],
-            "epsilon": _params.get("epsilon_r", 78.5) * _constants.VACUUM_PERMITTIVITY,
+            },
+            "epsilon_r": epsilon_r,
+            "epsilon": epsilon_r
+            * constants.VACUUM_PERMITTIVITY.to(
+                uc.UNIT_SYSTEMS[self._unit_system]["permittivity"]
+            ),
             "temperature": self.temperature,
         }
+
         self.electrolyte = Electrolyte(**params)
 
     def set_model(self, _params: dict):
@@ -176,7 +204,7 @@ class ElectricalDoubleLayer:
         self,
         coordinates: unxt.Quantity,
         boundary_conditions: Sequence[BoundaryCondition],
-        laplacian: LaplacianOperator | None = None,
+        grad_op: GradLaplacian1D | None = None,
         phi0: unxt.Quantity | None = None,
     ):
         """
@@ -190,9 +218,9 @@ class ElectricalDoubleLayer:
         boundary_conditions : list of BoundaryCondition
             A list of :class:`~fdm_edl.bc.BoundaryCondition` objects that
             define the constraints on specific nodes.
-        laplacian : LaplacianOperator or None, optional
-            Pre-built Laplacian operator.  When ``None`` (default), a
-            :class:`~fdm_edl.operators.LaplacianOperator1D` is
+        grad_op : GradLaplacian1D or None, optional
+            Pre-built gradient operator.  When ``None`` (default), a
+            :class:`~fdm_edl.utils.grad.GradLaplacian1D` is
             constructed automatically for 1-D problems.
         phi0 : unxt.Quantity or None, optional
             Initial guess for the potential at all grid nodes, shape
@@ -204,66 +232,99 @@ class ElectricalDoubleLayer:
         None
             The result is stored in ``self.result``.
         """
-        # --- Normalise coordinates to (n_grid, n_dim) -----------------------
-        if coordinates.ndim == 1:
-            coordinates_2d = coordinates.reshape(-1, 1)
-        else:
-            coordinates_2d = coordinates
-        n_grid = coordinates_2d.shape[0]
+        # convert coordinates to internal unit system
+        # Angstrom
+        _coordinates = coordinates.to(uc.UNIT_SYSTEMS["metal"]["length"]).value
+        # Volt
+        _phi0 = (
+            phi0.to(uc.UNIT_SYSTEMS["metal"]["electrical potential"]).value
+            if phi0 is not None
+            else None
+        )
 
-        # --- Build Laplacian if not provided --------------------------------
-        if laplacian is None:
+        # --- Normalise coordinates to (n_grid, n_dim) -----------------------
+        if _coordinates.ndim == 1:
+            coordinates_2d = _coordinates.reshape(-1, 1)
+        else:
+            coordinates_2d = _coordinates
+        n_grid = coordinates_2d.shape[0]
+        assert (
+            coordinates_2d.shape[1] == self.dim
+        ), "Coordinate dimension does not match model dimension."
+
+        if self.dim != 1:
+            raise NotImplementedError("Only dim=1 is currently supported.")
+
+        coordinates_1d = coordinates_2d[:, 0]
+        # --- Build gradient operator if not provided --------------------------------
+        if grad_op is None:
             if self.dim == 1:
                 # For 1-D, use the flat coordinate vector
-                laplacian = LaplacianOperator1D(coordinates_2d[:, 0])
+                grad_op = GradLaplacian1D()
             else:
                 raise NotImplementedError(
-                    f"Automatic Laplacian for dim={self.dim} is not yet implemented. "
-                    "Pass a LaplacianOperator explicitly."
+                    f"Numerical gradient operator for dim={self.dim} is not yet implemented. "
+                    "Pass a GradLaplacian1D explicitly."
                 )
+        grad_op = jax.jit(grad_op)
 
-        # --- Initial guess (zeros, then seed with BC values) ----------------
-        if phi0 is None:
-            phi0 = unxt.Quantity(jnp.zeros((n_grid,)), unit="V")
-        for bc in boundary_conditions:
-            phi0 = bc.apply_initial_guess(phi0)
+        # --- Zero initial guess if not provided ----------------
+        if _phi0 is None:
+            _phi0 = jnp.zeros((n_grid,))
 
         # --- Solve -----------------------------------------------------------
-        use_penalty = (
-            isinstance(self.solver, OptaxSolver)
-            and self.solver.bc_enforcement == "penalty"
+        # for bc in boundary_conditions:
+        #     # clamp Dirichlet nodes in the initial guess to improve convergence
+        #     if bc._is_dirichlet:
+        #         phi = bc.clamp_dirichlet(phi)
+        self._solver_result = self.solver.solve(
+            self.compute_residual,
+            _phi0,
+            boundary_conditions,
+            coordinates_1d,
+            grad_op,
         )
-        if use_penalty:
-            self._apply_bcs = False
-        try:
-            result = self.solver.solve(
-                self.get_residual,
-                phi0,
-                laplacian,
-                boundary_conditions,
-                coordinates_2d,
-                **(
-                    {
-                        "boundary_conditions": boundary_conditions,
-                        "coordinates": coordinates_2d,
-                    }
-                    if use_penalty
-                    else {}
-                ),
-            )
-        finally:
-            self._apply_bcs = True
-        result.set_coordinate(coordinates)
-        result.set_solution(result.solution_int)
 
-        self.result = result
+        #  --- post-process results ------------------------------------------------
+        phi_final = self._solver_result.solution
+        grad, _ = grad_op(
+            coordinates_1d, phi_final, h=coordinates_1d[1] - coordinates_1d[0]
+        )
+        efield = unxt.Quantity(
+            -grad, unit=uc.UNIT_SYSTEMS["metal"]["electrical field strength"]
+        ).to(uc.UNIT_SYSTEMS[self._unit_system]["electrical field strength"])
+        ion_conc = self.charge_model.ion_concentration_profile(
+            unxt.Quantity(
+                phi_final,
+                unit=uc.UNIT_SYSTEMS["metal"]["electrical potential"],
+            ),
+            self.electrolyte,
+            self.temperature,
+        )
+        rho_ion = charge_density_profile(ion_conc)
+        # calculate sigma from E-field at the electrode surface
+        self.result = EDLStatus(
+            coordinate=coordinates,
+            sigma=(self.electrolyte.epsilon * efield[0]).to(
+                uc.UNIT_SYSTEMS[self._unit_system]["surface charge density"]
+            ),
+            phi=unxt.Quantity(
+                phi_final,
+                unit=uc.UNIT_SYSTEMS["metal"]["electrical potential"],
+            ).to(uc.UNIT_SYSTEMS[self._unit_system]["electrical potential"]),
+            efield=efield,
+            rho=rho_ion.to(
+                uc.UNIT_SYSTEMS[self._unit_system]["electrical charge density"]
+            ),
+            ion_conc=ion_conc,
+        )
 
-    def get_residual(
+    def compute_residual(
         self,
-        phi: unxt.Quantity,
-        laplacian: LaplacianOperator,
+        phi: jax.Array,
         boundary_conditions: Sequence[BoundaryCondition],
-        coordinates: unxt.Quantity,
+        coordinates: jax.Array,
+        grad_op: GradLaplacian1D,
     ):
         """
         Compute the Poisson-Boltzmann residual at all grid nodes.
@@ -276,8 +337,8 @@ class ElectricalDoubleLayer:
         ----------
         phi : unxt.Quantity, shape (n_grid,)
             Electrostatic potential at every grid node.
-        laplacian : LaplacianOperator
-            Discrete Laplacian operator built for this grid.
+        grad_op : GradLaplacian1D
+            Discrete gradient operator built for this grid.
         boundary_conditions : sequence of BoundaryCondition
             Boundary conditions to enforce.
         coordinates : unxt.Quantity, shape (n_grid, n_dim)
@@ -289,149 +350,21 @@ class ElectricalDoubleLayer:
             Residual at each node.  Zero when the discretised
             Poisson-Boltzmann equation and all BCs are satisfied.
         """
+
         # --- Laplacian -------------------------------------------------------
-        d2phi = laplacian(phi)
+        grad, lap = grad_op(coordinates, phi, h=coordinates[1] - coordinates[0])
 
         # --- Ionic charge density (delegated to charge model) ----------------
         rho_ion = self.charge_model.charge_density(
-            phi, self.electrolyte, self.temperature
+            phi, self.electrolyte, self._temperature
         )
 
         # --- Physics residual at all nodes -----------------------------------
-        residual = d2phi + rho_ion / self.electrolyte.epsilon
+        # residual: V/Angstrom^2
+        residual = lap + rho_ion / self.electrolyte._epsilon
 
         # --- Apply boundary conditions -----------
-        if self._apply_bcs:
-            # Flatten coordinates for 1-D BCs that expect a 1-D array
-            coords_for_bc = (
-                coordinates[:, 0]
-                if coordinates.ndim == 2 and coordinates.shape[1] == 1
-                else coordinates
-            )
-            for bc in boundary_conditions:
-                residual = bc.apply_residual(residual, phi, coords_for_bc)
+        for bc in boundary_conditions:
+            residual = bc.update_residual(residual, phi, grad)
 
         return residual
-
-    def get_ion_concentration_profiles(self):
-        """
-        Compute the local ion concentration profiles based on the computed
-        potential.
-
-        Returns
-        -------
-        conc_profiles : dict
-            Mapping of ion name to local concentration profile as a
-            :class:`unxt.Quantity` array with units of mol/m^3.
-
-        Notes
-        -----
-        :meth:`compute` must be called before :meth:`get_ion_concentration_profiles`.
-        """
-        if self.result is None:
-            raise ValueError(
-                "Must call compute() before get_ion_concentration_profiles()"
-            )
-
-        phi = self.result.solution
-
-        # Bikerman needs the full electrolyte to compute the denominator
-        if isinstance(self.charge_model, BikermanModel):
-            return self.charge_model.ion_concentration_full(
-                phi, self.electrolyte, self.temperature
-            )
-
-        conc_profiles = {}
-        for ion in self.electrolyte.ions:
-            conc_profiles[ion.name] = self.charge_model.ion_concentration(
-                phi, ion, self.temperature
-            )
-        return conc_profiles
-
-    # def plot(self):
-    #     """
-    #     Plot the electrostatic potential and ion concentration profiles.
-
-    #     Returns
-    #     -------
-    #     fig : matplotlib.figure.Figure
-    #         The figure object containing both subplots.
-    #     axs : ndarray of matplotlib.axes.Axes, shape (2,)
-    #         Array of axes: ``axs[0]`` holds the potential profile and
-    #         ``axs[1]`` the ion concentration profiles.
-
-    #     Notes
-    #     -----
-    #     :meth:`compute` must be called before :meth:`plot`.
-    #     """
-    #     nrows = 2
-    #     ncols = 1
-    #     fig, axs = plt.subplots(
-    #         nrows, ncols, figsize=(nrows * 4, ncols * 5), sharex=True
-    #     )
-
-    #     # Plot Potential
-    #     ax = axs[0]
-    #     ax.plot(self.coordinates, self.solution, color="black", lw=2)
-    #     ax.set_title(r"Electrostatic Potential $\phi(x)$")
-    #     ax.set_ylabel(r"$\phi$ (V)")
-    #     ax.grid(True)
-
-    #     # Plot Concentrations
-    #     ax = axs[1]
-    #     total_q_conc = 0.0
-    #     for name, data in self.electrolyte.ions.items():
-    #         z = data["charge"]
-    #         c0 = data["conc"]
-    #         # Local concentration in mol/L.
-    #         local_c = c0 * jnp.exp(
-    #             -z
-    #             * _constants.FARADAY_CONSTANT
-    #             * self.solution
-    #             / (_constants.GAS_CONSTANT * self.temperature)
-    #         )
-    #         ax.plot(self.coordinates, local_c, label=f"{name} ($z={z}$)")
-    #         total_q_conc += local_c * z
-
-    #     ax.plot(
-    #         self.coordinates,
-    #         total_q_conc,
-    #         label="Total Charge Concentration",
-    #         color="red",
-    #         lw=2,
-    #         linestyle="--",
-    #     )
-
-    #     ax.set_title("Ion Concentrations")
-    #     ax.set_ylabel("Concentration (M)")
-    #     ax.legend()
-    #     ax.grid(True)
-
-    #     ax.set_xlabel("nm")
-    #     plt.tight_layout()
-    #     return fig, axs
-
-
-def boltzmann_factor(
-    phi: unxt.Quantity,
-    temperature: unxt.Quantity,
-    valency: int = 1,
-):
-    """Compute the Boltzmann factor exp(-z e φ / k_B T).
-
-    Parameters
-    ----------
-    phi : unxt.Quantity
-        Electrostatic potential.
-    temperature : unxt.Quantity
-        Absolute temperature.
-    valency : int, optional
-        Ion valency *z* (default: 1).
-
-    Returns
-    -------
-    unxt.Quantity
-        Dimensionless Boltzmann factor at each grid node.
-    """
-    beta = 1.0 / (_constants.BOLTZMANN_CONSTANT * temperature).to("eV")
-    return jnp.exp((-_constants.ELEMENTARY_CHARGE * phi * beta * valency).to(""))

@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
-import jax
-import quaxed.numpy as jnp
-import unxt
+from typing import Sequence
 
-from fdm_edl.solver.base import BaseSolver, ResidualFunction, RootSolveResult
+import jax
+from jax import numpy as jnp
+
+from ..utils.bc import BoundaryCondition
+from .base import BaseSolver, ResidualFunction, RootSolveResult
 
 
 class NewtonSolver(BaseSolver, methods=("newton",)):
@@ -42,18 +44,29 @@ class NewtonSolver(BaseSolver, methods=("newton",)):
         self.tol = tol
 
     def solve(
-        self, residual_fn: ResidualFunction, phi0: unxt.Quantity, *args
+        self,
+        residual_fn: ResidualFunction,
+        phi: jax.Array,
+        boundary_conditions: Sequence[BoundaryCondition],
+        *args,
     ) -> RootSolveResult:
         """
         Solve via Newton-Raphson iterations with a full JAX Jacobian.
+
+        The iteration loop uses ``jax.lax.while_loop`` so the entire
+        solve is JIT-compilable.  ``while_loop`` is preferred over
+        ``fori_loop`` because it supports early termination on
+        convergence, avoiding unnecessary Jacobian evaluations.
 
         Parameters
         ----------
         residual_fn : callable
             Residual function with signature
             ``residual_fn(phi, *args) -> jax.Array``.
-        phi0 : jax.Array
+        phi : jax.Array
             Initial guess.
+        boundary_conditions : Sequence[BoundaryCondition]
+            List of boundary conditions.
         *args
             Extra positional arguments forwarded to *residual_fn*.
 
@@ -62,106 +75,52 @@ class NewtonSolver(BaseSolver, methods=("newton",)):
         RootSolveResult
             Result containing the solution and solver diagnostics.
         """
-        phi_int = phi0
-        converged = False
+        max_iter = self.max_iter
+        tol = self.tol
 
-        for ii in range(self.max_iter):
-            res = residual_fn(phi_int, *args)
-            _jac = jax.jacobian(residual_fn)(phi_int, *args)
-            jac = unxt.Quantity(_jac.value.value, unit=_jac.unit / phi_int.unit)
-            step = jnp.linalg.solve(jac, -res)
-            phi_int = phi_int + step.reshape(phi_int.shape)
+        # clamp Dirichlet nodes in the initial guess
+        for bc in boundary_conditions:
+            if bc._is_dirichlet:
+                phi = bc.clamp_dirichlet(phi)
 
-            # check convergence based on step norm relative to number of variables
-            step_norm = jnp.mean(step.value * step.value)
-            if step_norm < self.tol:
-                converged = True
-                break
+        # Inner JIT-compiled solve.  residual_fn, boundary_conditions,
+        # and extra args are captured by closure (compile-time constants);
+        # only `phi` is a traced dynamic argument.
+        # @jax.jit
+        def _solve(phi):
+            def cond_fn(state):
+                _, converged, n_iter = state
+                return jnp.logical_and(~converged, n_iter < max_iter)
 
-        residual = residual_fn(phi_int, *args)
+            def body_fn(state):
+                phi, _, n_iter = state
+                for bc in boundary_conditions:
+                    if bc._is_dirichlet:
+                        phi = bc.clamp_dirichlet(phi)
+                res = residual_fn(phi, boundary_conditions, *args)
+                jac = jax.jacobian(residual_fn)(phi, boundary_conditions, *args)
+                step = jnp.linalg.solve(jac, -res)
+                phi = phi + step.reshape(phi.shape)
+                step_norm = jnp.mean(jnp.square(step))
+                converged = step_norm < tol
+                return (phi, converged, n_iter + 1)
+
+            init_state = (phi, jnp.bool_(False), jnp.int32(0))
+            phi, converged, n_iter = jax.lax.while_loop(cond_fn, body_fn, init_state)
+            # clamp once more after the final step update
+            for bc in boundary_conditions:
+                if bc._is_dirichlet:
+                    phi = bc.clamp_dirichlet(phi)
+            # Cut gradients: differentiating through the Newton loop is
+            # not useful and would checkpoint every iteration's Jacobian.
+            phi = jax.lax.stop_gradient(phi)
+            residual = residual_fn(phi, boundary_conditions, *args)
+            return phi, converged, n_iter, residual
+
+        phi, converged, n_iter, residual = _solve(phi)
         return RootSolveResult(
-            solution_int=phi_int,
+            solution=phi,
             converged=converged,
-            n_iter=ii + 1,
+            n_iter=n_iter,
             residual=residual,
         )
-
-
-# class JaxoptBroydenSolver(BaseSolver, methods=("jaxopt_broyden", "broyden")):
-#     """
-#     Broyden quasi-Newton solver backed by *jaxopt*.
-
-#     Parameters
-#     ----------
-#     method : str or None, optional
-#         Ignored; present for API compatibility with the factory.
-#     max_iter : int, optional
-#         Maximum number of Broyden iterations (default: 100).
-#     tol : float, optional
-#         Convergence tolerance (default: 1e-6).
-
-#     Attributes
-#     ----------
-#     max_iter : int
-#         Maximum iteration count.
-#     tol : float
-#         Convergence threshold.
-
-#     Raises
-#     ------
-#     ImportError
-#         If *jaxopt* is not installed.
-#     """
-
-#     def __init__(
-#         self, method: str | None = None, max_iter: int = 100, tol: float = 1e-6
-#     ):
-#         self.max_iter = max_iter
-#         self.tol = tol
-#         try:
-#             Broyden = importlib.import_module("jaxopt").Broyden
-#         except ImportError as exc:
-#             raise ImportError(
-#                 "jaxopt is not installed. Install it with `pip install jaxopt` to use JaxoptBroydenSolver."
-#             ) from exc
-#         self._broyden_cls = Broyden
-
-#     def solve(
-#         self, residual_fn: ResidualFunction, phi0: unxt.Quantity, *args
-#     ) -> RootSolveResult:
-#         """
-#         Solve via Broyden's quasi-Newton method using *jaxopt*.
-
-#         Parameters
-#         ----------
-#         residual_fn : callable
-#             Residual function with signature
-#             ``residual_fn(phi, *args) -> jax.Array``.
-#         phi0 : jax.Array
-#             Initial guess.
-#         *args
-#             Extra positional arguments forwarded to *residual_fn*.
-
-#         Returns
-#         -------
-#         RootSolveResult
-#             Result containing the solution and solver diagnostics.
-#         """
-#         solver = self._broyden_cls(
-#             optimality_fun=residual_fn,
-#             maxiter=self.max_iter,
-#             tol=self.tol,
-#             implicit_diff=False,
-#         )
-#         result = solver.run(phi0, *args)
-#         params = result.params
-#         state = result.state
-#         residual_norm = float(jnp.linalg.norm(residual_fn(params, *args)))
-#         converged = bool(getattr(state, "error", jnp.inf) < self.tol)
-#         n_iter = int(getattr(state, "iter_num", self.max_iter))
-#         return RootSolveResult(
-#             solution=params,
-#             converged=converged,
-#             n_iter=n_iter,
-#             residual_norm=residual_norm,
-#         )

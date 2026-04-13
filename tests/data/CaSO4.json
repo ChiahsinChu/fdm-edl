@@ -14,5 +14,12 @@
         "charge": -2.0
       }
     }
+  },
+  "model": {
+    "type": "boltzmann"
+  },
+  "solver": {
+    "max_iter": 20,
+    "tol": 1e-6
   }
 }

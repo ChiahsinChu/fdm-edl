@@ -5,10 +5,10 @@ import quaxed.numpy as jnp
 import unxt
 from astropy.units import cds
 
-from .. import _constants
-from ..edl import ElectricalDoubleLayer
+from ..api import ElectricalDoubleLayer
+from ..models.base import boltzmann_factor
+from ..utils import constants
 from ..utils.output import EDLStatus
-from .base import boltzmann_factor
 
 
 @jax.jit
@@ -32,7 +32,7 @@ class BasePoissonBoltzmann:
             Configured EDL system (electrolyte, temperature, etc.).
         """
         self.edl_obj = edl_obj
-        self.beta = 1.0 / (_constants.BOLTZMANN_CONSTANT * self.edl_obj.temperature).to(
+        self.beta = 1.0 / (constants.BOLTZMANN_CONSTANT * self.edl_obj.temperature).to(
             "eV"
         )
 
@@ -122,7 +122,7 @@ class LinearPoissonBoltzmann(BasePoissonBoltzmann):
         # Linearised PB charge density profile [mol/L].
         epsilon = self.edl_obj.electrolyte.epsilon
         _rho = (phi_0 * epsilon / debye_length**2) * _linear_exponent(_x, debye_length)
-        rho = (_rho / (_constants.ELEMENTARY_CHARGE * _constants.AVOGADRO_NUMBER)).to(
+        rho = (_rho / (constants.ELEMENTARY_CHARGE * constants.AVOGADRO_NUMBER)).to(
             "mol/L"
         )
 
@@ -133,13 +133,13 @@ class LinearPoissonBoltzmann(BasePoissonBoltzmann):
             efield=efield,
             rho=rho,
             ion_conc={
-                ion.name: ion.molar_conc
+                name: ion.molar_conc
                 * boltzmann_factor(
                     phi=phi,
                     temperature=self.edl_obj.temperature,
-                    valency=int((ion.charge / _constants.ELEMENTARY_CHARGE).to("")),
+                    charge=ion.charge,
                 )
-                for ion in self.edl_obj.electrolyte.ions
+                for name, ion in self.edl_obj.electrolyte.ions.items()
             },
         )
 
@@ -174,26 +174,22 @@ class NonLinearPoissonBoltzmann(BasePoissonBoltzmann):
                 f"2 ions (symmetric z:z electrolyte), got {len(ions)}."
             )
 
-        z0 = ions[0].charge.to("C").value / _constants.ELEMENTARY_CHARGE.to("C").value
-        z1 = ions[1].charge.to("C").value / _constants.ELEMENTARY_CHARGE.to("C").value
+        z_tot = 0.0
+        for name, ion in ions.items():
+            zi = ion.charge.to("C").value / constants.ELEMENTARY_CHARGE.to("C").value
+            z_tot += zi
 
         # symmetric binary electrolyte: valences must be +1 and -1
-        if not (jnp.isclose(z0 + z1, 0.0)):
+        if not (jnp.isclose(z_tot, 0.0)):
             raise ValueError(
                 "NonLinearPoissonBoltzmann analytical solution requires a "
                 "symmetric z:z electrolyte."
             )
 
-        c0 = ions[0].molar_conc.to("mol/L")
-        c1 = ions[1].molar_conc.to("mol/L")
-        if not jnp.isclose((c0 - c1).to("mol/L").value, 0.0):
-            raise ValueError(
-                "NonLinearPoissonBoltzmann analytical solution requires equal "
-                "bulk concentrations for cation and anion."
-            )
+        c0 = ion.molar_conc.to("mol/L")
 
         return c0, unxt.Quantity(
-            jnp.abs(z0), unit=cds.e
+            jnp.abs(zi), unit=cds.e
         )  # return bulk concentration and valence magnitude
 
     def phi0_to_sigma(
@@ -204,11 +200,11 @@ class NonLinearPoissonBoltzmann(BasePoissonBoltzmann):
         epsilon = self.edl_obj.electrolyte.epsilon
         grahame_prefactor = jnp.sqrt(
             8
-            * _constants.BOLTZMANN_CONSTANT
+            * constants.BOLTZMANN_CONSTANT
             * self.edl_obj.temperature
             * epsilon
             * self.bulk_concentration
-            * _constants.AVOGADRO_NUMBER
+            * constants.AVOGADRO_NUMBER
         )
         arg = (self.valency * self.beta * phi_0 / 2).to("")
         return (grahame_prefactor * jnp.sinh(arg)).to(cds.e / unxt.unit("angstrom^2"))
@@ -262,13 +258,13 @@ class NonLinearPoissonBoltzmann(BasePoissonBoltzmann):
             efield=efield.to("V/Angstrom"),
             rho=None,
             ion_conc={
-                ion.name: ion.molar_conc
+                name: ion.molar_conc
                 * boltzmann_factor(
                     phi=phi,
                     temperature=self.edl_obj.temperature,
-                    valency=int((ion.charge / _constants.ELEMENTARY_CHARGE).to("")),
+                    charge=ion.charge,
                 )
-                for ion in self.edl_obj.electrolyte.ions
+                for name, ion in self.edl_obj.electrolyte.ions.items()
             },
         )
 

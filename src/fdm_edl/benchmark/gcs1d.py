@@ -13,9 +13,9 @@ import unxt
 from astropy.units import cds
 from scipy.optimize import brentq
 
-from .. import _constants
+from ..models.base import boltzmann_factor
+from ..utils import constants
 from ..utils.output import EDLStatus
-from .base import boltzmann_factor
 from .pb1d import NonLinearPoissonBoltzmann
 
 
@@ -89,7 +89,7 @@ class GCSModel(NonLinearPoissonBoltzmann):
         unxt.Quantity
             Potential at position *x* within the Stern layer.
         """
-        efield = sigma / (eps_ohp * _constants.VACUUM_PERMITTIVITY)
+        efield = sigma / (eps_ohp * constants.VACUUM_PERMITTIVITY)
         # 'e m / (Angstrom F)' (electrical potential) and '' (dimensionless)
         return phi_0 - efield * x
 
@@ -125,7 +125,7 @@ class GCSModel(NonLinearPoissonBoltzmann):
             sigma_h = (
                 (phi_0_value - phi_ohp)
                 * self.eps_ohp
-                * (_constants.VACUUM_PERMITTIVITY / self.d_ohp)
+                * (constants.VACUUM_PERMITTIVITY / self.d_ohp)
                 .to(cds.e / unxt.unit("V*angstrom^2"))
                 .value
             )
@@ -181,7 +181,7 @@ class GCSModel(NonLinearPoissonBoltzmann):
             )
         )
         efield = efield.at[mask_helmholtz].set(
-            sigma / (self.eps_ohp * _constants.VACUUM_PERMITTIVITY)
+            sigma / (self.eps_ohp * constants.VACUUM_PERMITTIVITY)
         )
         # set the ion_conc for x < d_ohp as zero since it's in the Stern layer where ions are absent
         self.edl_status = EDLStatus(
@@ -191,16 +191,16 @@ class GCSModel(NonLinearPoissonBoltzmann):
             efield=efield.to("V/Angstrom"),
             rho=None,
             ion_conc={
-                ion.name: jnp.where(
+                name: jnp.where(
                     mask_gc,
                     ion.molar_conc
                     * boltzmann_factor(
                         phi=phi,
                         temperature=self.edl_obj.temperature,
-                        valency=int((ion.charge / _constants.ELEMENTARY_CHARGE).to("")),
+                        charge=ion.charge,
                     ),
                     0.0 * ion.molar_conc.unit,  # zero concentration in Stern layer
                 )
-                for ion in self.edl_obj.electrolyte.ions
+                for name, ion in self.edl_obj.electrolyte.ions.items()
             },
         )

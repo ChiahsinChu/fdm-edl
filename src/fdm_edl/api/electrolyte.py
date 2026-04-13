@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 from dataclasses import dataclass
-from typing import List
+from typing import Dict
 
 import quaxed.numpy as jnp
 import unxt
 from astropy.units import cds
 
-from .. import _constants
+from ..utils import constants
+from ..utils import unit_conversion as uc
 
 
 @dataclass(frozen=True)
@@ -33,6 +34,23 @@ class Ion:
         0.0, "angstrom"
     )  # Optional: ionic radius for steric effects
 
+    def __post_init__(self):
+        object.__setattr__(
+            self,
+            "_charge",
+            self.charge.to(uc.UNIT_SYSTEMS["metal"]["electrical charge"]).value,
+        )
+        object.__setattr__(
+            self,
+            "_molar_conc",
+            self.molar_conc.to(
+                unxt.unit("mol") / uc.UNIT_SYSTEMS["metal"]["volume"]
+            ).value,
+        )
+        object.__setattr__(
+            self, "_radius", self.radius.to(uc.UNIT_SYSTEMS["metal"]["length"]).value
+        )
+
 
 @dataclass(frozen=True)
 class Electrolyte:
@@ -50,9 +68,10 @@ class Electrolyte:
         If ``True``, enforce global electroneutrality at initialization.
     """
 
-    ions: List[Ion]
+    ions: Dict[str, Ion]
     temperature: unxt.Quantity
     epsilon: unxt.Quantity
+    epsilon_r: float = 78.5
     electroneutrality: bool = True
 
     def __post_init__(self):
@@ -66,17 +85,26 @@ class Electrolyte:
         """
 
         if len(self.ions) > 0:
-            tot_charge = unxt.Q(
-                0.0, self.ions[0].charge.unit * self.ions[0].molar_conc.unit
-            )
-            for ion in self.ions:
-                q = ion.charge
-                c = ion.molar_conc
+            tot_charge = 0.0
+            for ion in self.ions.values():
+                q = ion.charge.value
+                c = ion.molar_conc.value
                 tot_charge += q * c
             if self.electroneutrality and tot_charge != 0.0:
                 raise ValueError(
-                    f"Electroneutrality condition not satisfied. Total charge concentration: {tot_charge.value} {tot_charge.unit}"
+                    f"Electroneutrality condition not satisfied. Total charge concentration: {tot_charge} {self.ions[0].charge.unit * self.ions[0].molar_conc.unit}"
                 )
+
+        object.__setattr__(
+            self,
+            "_temperature",
+            self.temperature.to(uc.UNIT_SYSTEMS["metal"]["temperature"]).value,
+        )
+        object.__setattr__(
+            self,
+            "_epsilon",
+            self.epsilon.to(uc.UNIT_SYSTEMS["metal"]["permittivity"]).value,
+        )
 
     @property
     def ionic_strength(self) -> unxt.Quantity:
@@ -91,11 +119,11 @@ class Electrolyte:
         """
         ionic_strength = unxt.Q(0.0, "mol / L")
         if len(self.ions) > 0:
-            for ion in self.ions:
+            for ion in self.ions.values():
                 z = ion.charge.to(cds.e).value
                 c = ion.molar_conc
                 ionic_strength += 0.5 * z**2 * c
-        return ionic_strength
+        return ionic_strength.to("mol / L")
 
     @property
     def debye_length(self) -> unxt.Quantity:
@@ -115,13 +143,15 @@ class Electrolyte:
 
         debye_length = jnp.sqrt(
             self.epsilon
-            * _constants.BOLTZMANN_CONSTANT
+            * constants.BOLTZMANN_CONSTANT
             * self.temperature
             / (
                 2
-                * _constants.AVOGADRO_NUMBER
-                * _constants.ELEMENTARY_CHARGE**2
+                * constants.AVOGADRO_NUMBER
+                * constants.ELEMENTARY_CHARGE**2
                 * self.ionic_strength
             )
         )
-        return debye_length.to("angstrom")  # Convert to Angstrom (Å)
+        return debye_length.to(
+            uc.UNIT_SYSTEMS["metal"]["length"]
+        )  # Convert to Angstrom (Å)
