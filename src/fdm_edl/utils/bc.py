@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 from dataclasses import dataclass
-from typing import List
+from typing import Sequence
 
 import jax
 import jax.numpy as jnp
@@ -39,7 +39,7 @@ class BoundaryCondition:
     alpha: unxt.Quantity | float
     beta: unxt.Quantity | float
     gamma: unxt.Quantity | float
-    node_indices: jax.Array | List[int]
+    node_indices: jax.Array | Sequence[int]
 
     def __post_init__(self):
         indices = jnp.asarray(self.node_indices)

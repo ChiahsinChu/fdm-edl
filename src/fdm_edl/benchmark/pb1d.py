@@ -8,7 +8,7 @@ from astropy.units import cds
 from ..api import ElectricalDoubleLayer
 from ..models.base import boltzmann_factor
 from ..utils import constants
-from ..utils.output import EDLStatus
+from ..utils.output_def import EDLStatus
 
 
 @jax.jit

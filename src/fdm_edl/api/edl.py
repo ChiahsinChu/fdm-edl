@@ -16,7 +16,7 @@ from ..utils import constants, load_dict
 from ..utils import unit_conversion as uc
 from ..utils.bc import BoundaryCondition
 from ..utils.grad import GradLaplacian1D
-from ..utils.output import EDLStatus
+from ..utils.output_def import EDLStatus
 from .electrode import Electrode
 from .electrolyte import Electrolyte, Ion
 

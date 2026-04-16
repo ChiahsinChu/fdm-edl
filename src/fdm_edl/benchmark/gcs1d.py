@@ -15,7 +15,7 @@ from scipy.optimize import brentq
 
 from ..models.base import boltzmann_factor
 from ..utils import constants
-from ..utils.output import EDLStatus
+from ..utils.output_def import EDLStatus
 from .pb1d import NonLinearPoissonBoltzmann
 
 

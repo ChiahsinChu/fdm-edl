@@ -1,10 +1,16 @@
 ---
 status: draft
 author: Jia-Xin Zhu, AI Agent
-last_updated: 2026-03-25
+last_updated: 2026-04-16
 ---
 
 # CHANGELOG
+
+## [0.1.dev4] - 2026-04-16
+
+### Added
+
+- NumPy-style docstrings for the isotherm module: `BaseIsotherm`, `LangmuirIsotherm`, `FrumkinIsotherm`, and all public methods
 
 ## [0.1.dev3] - 2026-03-25
 

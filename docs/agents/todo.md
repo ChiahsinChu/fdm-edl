@@ -1,12 +1,31 @@
 ---
 status: draft
 author: Jia-Xin Zhu, AI Agent
-last_updated: 2026-03-17
+last_updated: 2026-04-16
 ---
 
 # Development Plans
 
 ## Features
+
+### Nanotubes
+
+- [ ] OPs for cylindrical coordinates
+
+### Charge models
+
+- [ ] Bikerman model with single cation/anion types
+- [ ] Bikerman model with mixed cation/anion types
+- [ ] Add solvent response (Langevin)
+
+### Boundary conditions
+
+- [ ] single chemisorption (Frumkin isotherm, known: lateral coefficient & potential)
+- [ ] multi chemisorption equilibrium
+
+### 2D/3D FEM
+
+- [ ] Add interface to [JAX-FEM](https://github.com/deepmodeling/jax-fem) for 2D/3D cases
 
 ### Done
 
@@ -16,18 +35,18 @@ last_updated: 2026-03-17
 - [x] Load parameters from `dict`, JSON, or YAML file
 - [x] Electroneutrality check on electrolyte input
 - [x] Compute analytical properties (e.g., Debye length) without solving the full PDE
-
-### Pending
-
-- [ ] Allow more flexible / automated grid generation (e.g., non-uniform, adaptive spacing)
-- [ ] Add physical units to output results and plots (e.g., via [`unxt`](https://github.com/GalacticDynamics/unxt))
+- [x] Add physical units to output results and plots (e.g., via [`unxt`](https://github.com/GalacticDynamics/unxt))
 
 ## Documentation
 
-- [ ] Add usage example notebook for 1D EDL (extend `examples/00.1d_edl/run.ipynb`)
-- [ ] Add API docstrings to `ElectricalDoubleLayer`, `Electrode`, `Electrolyte`, `Solver`
+- [x] Add usage example notebook for 1D EDL (extend `examples/00.1d_edl/run.ipynb`)
+- [x] Add API docstrings to `ElectricalDoubleLayer`, `Electrode`, `Electrolyte`, `Solver`
+- [x] Add API docstrings to isotherm module (`BaseIsotherm`, `LangmuirIsotherm`, `FrumkinIsotherm`)
+
+## Unit Tests
+
+- [ ] Add unit tests for the PBE residual and Newton solver
 
 ## Chores
 
 - [ ] Check GPU compatibility for JAX solver
-- [ ] Add unit tests for the PBE residual and Newton solver

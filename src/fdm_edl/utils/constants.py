@@ -14,5 +14,7 @@ BOLTZMANN_CONSTANT = unxt.Quantity(_const.Boltzmann, "J/K")
 AVOGADRO_NUMBER = unxt.Quantity(_const.Avogadro, "1/mol")
 
 # Derived constants
+# Faraday constant in C/mol
 FARADAY_CONSTANT = ELEMENTARY_CHARGE * AVOGADRO_NUMBER
-GAS_CONSTANT = BOLTZMANN_CONSTANT * AVOGADRO_NUMBER
+# molar gas constant in J/(mol*K)
+MOLAR_GAS_CONSTANT = BOLTZMANN_CONSTANT * AVOGADRO_NUMBER
