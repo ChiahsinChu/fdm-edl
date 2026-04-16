@@ -1,5 +1,5 @@
 site_name: FDM-EDL
-site_description: Finite Difference Method for Electrical Double Layer simulations
+site_description: Finite Difference Method for Electrical Double Layer continuum modellings
 site_author: Jia-Xin Zhu
 repo_url: https://jugit.fz-juelich.de/ZhuJia-Xin/fdm-edl
 repo_name: fdm-edl
@@ -49,10 +49,11 @@ plugins:
             show_signature_annotations: true
             filters: ["!^_"]
   - glightbox
-  - git-revision-date-localized:
-      type: timeago
-      enable_creation_date: true
-      enable_git_follow: false
+  - gen-files:
+      scripts:
+        - docs/gen_reference.py
+  - literate-nav:
+      nav_file: reference/SUMMARY.md
 
 markdown_extensions:
   - pymdownx.arithmatex:
@@ -78,11 +79,5 @@ extra_javascript:
 nav:
   - Home: index.md
   - Changelog: CHANGELOG.md
-  - API Reference:
-      - EDL System: api/edl/system.md
-      - Electrode: api/edl/electrode.md
-      - Electrolyte: api/edl/electrolyte.md
-      - Boundary Conditions: api/bc.md
-      - Operators: api/operators.md
-      - Solver: api/solver.md
-      - Utilities: api/utils.md
+  - Coverage: codecov/class_index.html
+  - API: reference/

@@ -6,6 +6,10 @@ A Python/JAX package for solving the Poisson-Boltzmann equation in 1-D, 2-D,
 and 3-D using finite-difference methods with modular boundary conditions and
 discrete operators.
 
+## Documentation
+
+- [Code Coverage Report](codecov/class_index.html)
+
 ## Quick Start
 
 ```python
