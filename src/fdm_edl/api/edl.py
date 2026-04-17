@@ -3,11 +3,14 @@ from __future__ import annotations
 
 import copy
 import pathlib
-from typing import Sequence
+from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
 import unxt
+
+if TYPE_CHECKING:
+    from typing import Sequence
 
 from ..models import ChargeModel, create_charge_model
 from ..models.base import charge_density_profile

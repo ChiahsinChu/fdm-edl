@@ -1,10 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Dict
+from typing import TYPE_CHECKING
 
 import quaxed.numpy as jnp
 import unxt
 from astropy.units import cds
+
+if TYPE_CHECKING:
+    from typing import Dict
 
 from ..utils import constants
 from ..utils import unit_conversion as uc
@@ -49,6 +54,21 @@ class Ion:
         )
         object.__setattr__(
             self, "_radius", self.radius.to(uc.UNIT_SYSTEMS["metal"]["length"]).value
+        )
+        molar_volume = ((2 * self.radius) ** 3 * constants.AVOGADRO_NUMBER).to(
+            "L / mol"
+        )
+        object.__setattr__(
+            self,
+            "molar_volume",
+            molar_volume,
+        )
+        object.__setattr__(
+            self,
+            "_molar_volume",
+            molar_volume.to(
+                uc.UNIT_SYSTEMS["metal"]["volume"] / unxt.unit("mol")
+            ).value,
         )
 
 

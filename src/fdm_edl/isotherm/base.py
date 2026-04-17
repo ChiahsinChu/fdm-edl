@@ -1,11 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Callable
+from typing import TYPE_CHECKING
 
 import jax
 import optax
-import unxt
 from jax import numpy as jnp
+
+if TYPE_CHECKING:
+    from typing import Callable
+    import unxt
 
 from ..utils import constants
 from ..utils.output_def import IsothermStatus

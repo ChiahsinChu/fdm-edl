@@ -6,6 +6,28 @@ last_updated: 2026-04-16
 
 # CHANGELOG
 
+## [0.1.dev5] - 2026-04-17
+
+### Added
+
+- Ion molar volume computation in `Ion` dataclass for steric effect calculations
+- Comprehensive NumPy-style docstrings to boundary condition classes and Bikerman model
+- Improved type annotations with `TYPE_CHECKING` for forward references across API modules
+
+### Changed
+
+- **BC API refactoring**: Converted from Protocol-based factory functions to ABC-based factory class pattern
+  - Introduced `TemplateBC` base class for standardized boundary condition coefficient providers
+  - Converted `make_constp_bc()` → `ConstP` class, `make_neumann_bc()` → `NeumannBC` class, etc.
+  - All BC classes now store coefficients in `self.coeff` and implement `make_coeff()` method
+- **Bikerman model improvements**: Refactored steric effects calculation for better numerical stability
+  - Replaced list-based density calculations with JAX array operations
+  - Improved handling of packing fraction denominator computation
+  - Renamed `ion_concentration_full()` to `ion_concentration_profile()` for clarity
+  - Enhanced docstrings with parameter and return value documentation
+- Import reorganization: Prioritized `from jax import numpy` over `quaxed.numpy` for consistency
+- Updated solver modules with improved type hints and docstrings
+
 ## [0.1.dev4] - 2026-04-16
 
 ### Added

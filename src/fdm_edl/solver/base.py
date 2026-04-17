@@ -5,10 +5,14 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable, ClassVar, Sequence
+from typing import TYPE_CHECKING, Callable
 
-import jax
 from jax import numpy as jnp
+
+if TYPE_CHECKING:
+    from typing import ClassVar, Sequence
+
+    import jax
 
 from ..utils.bc import BoundaryCondition
 

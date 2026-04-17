@@ -7,19 +7,20 @@ density as a function of the local electrostatic potential.
 
 from __future__ import annotations
 
-from typing import Dict
+from typing import TYPE_CHECKING
 
-# from typing import TYPE_CHECKING
-import jax
-import unxt
 from jax import numpy as jnp
 
-from ..api.electrolyte import Electrolyte
 from ..utils import constants
 from .base import ChargeModel, boltzmann_factor, register
 
-# import quaxed.numpy as jnp
-# import unxt
+if TYPE_CHECKING:
+    from typing import Dict
+
+    import jax
+    import unxt
+
+    from ..api.electrolyte import Electrolyte
 
 
 # ---------------------------------------------------------------------------

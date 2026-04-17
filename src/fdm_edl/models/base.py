@@ -9,12 +9,15 @@ from __future__ import annotations
 
 import copy
 from abc import ABC, abstractmethod
-from typing import Dict
+from typing import TYPE_CHECKING
 
 import quaxed.numpy as jnp
 import unxt
 
 from ..api.electrolyte import Electrolyte
+
+if TYPE_CHECKING:
+    from typing import Dict
 from ..utils import constants
 from ..utils.unit_conversion import UNIT_SYSTEMS
 

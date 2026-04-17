@@ -3,10 +3,13 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import TYPE_CHECKING
 
 import jax
 from jax import numpy as jnp
+
+if TYPE_CHECKING:
+    from typing import Sequence
 
 from ..utils.bc import BoundaryCondition
 from .base import BaseSolver, ResidualFunction, RootSolveResult

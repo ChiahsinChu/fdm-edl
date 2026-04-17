@@ -1,9 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """I/O helpers for loading user model-parameter files."""
 
+from __future__ import annotations
+
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any
 
 
 def load_dict(file_path: str | Path) -> dict[str, Any]:

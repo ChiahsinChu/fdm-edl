@@ -6,7 +6,7 @@ import numpy as np
 import quaxed.numpy as jnp
 import unxt
 
-from fdm_edl.api import ElectricalDoubleLayer, bc
+from fdm_edl.api import ConstP, ElectricalDoubleLayer, Symmetric
 from fdm_edl.benchmark import NonLinearPoissonBoltzmann
 
 
@@ -29,10 +29,9 @@ class TestNonLinearPoissonBoltzmannSolution(unittest.TestCase):
     def test_numerical(self) -> None:
         # Dirichlet BCs: phi(0) = phi_0, phi(L) = 0
         bcs = ()
-        bcs += bc.make_constp_bc([0], phi=self.phi_0)
-        bcs += bc.make_constp_bc(
-            [self.x.size - 1], phi=unxt.Quantity(0.0, unit=self.phi_0.unit)
-        )
+        ConstP(phi=self.phi_0)([0])
+        bcs += ConstP(phi=self.phi_0)([0])
+        bcs += ConstP(phi=unxt.Quantity(0.0, unit=self.phi_0.unit))([self.x.size - 1])
 
         self.edl_obj.compute(self.x, bcs)
 
@@ -47,18 +46,16 @@ class TestNonLinearPoissonBoltzmannSolution(unittest.TestCase):
         # Check that the reference solution is self-consistent.
         # Dirichlet BCs: phi(0) = phi_0, phi(L) = 0
         bcs = ()
-        bcs += bc.make_constp_bc([0], phi=self.phi_0)
-        bcs += bc.make_constp_bc(
-            [self.x.size - 1], phi=unxt.Quantity(0.0, unit=self.phi_0.unit)
-        )
+        bcs += ConstP(phi=self.phi_0)([0])
+        bcs += ConstP(phi=unxt.Quantity(0.0, unit=self.phi_0.unit))([self.x.size - 1])
 
         self.edl_obj.compute(self.x, bcs)
         phi_1 = self.edl_obj.result.phi.value
 
         # Dirichlet BC: phi(0) = phi_0; Neumann BC: dphi/dx(L) = 0
         bcs = ()
-        bcs += bc.make_constp_bc([0], phi=self.phi_0)
-        bcs += bc.make_symmetric_bc([self.x.size - 1])
+        bcs += ConstP(phi=self.phi_0)([0])
+        bcs += Symmetric()([self.x.size - 1])
 
         self.edl_obj.compute(self.x, bcs)
         phi_2 = self.edl_obj.result.phi.value

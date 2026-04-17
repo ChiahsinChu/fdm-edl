@@ -1,10 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-from dataclasses import dataclass
-from typing import Sequence
+from __future__ import annotations
 
-import jax
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
 import jax.numpy as jnp
 import unxt
+
+if TYPE_CHECKING:
+    from typing import Sequence
+
+    import jax
 
 from .unit_conversion import UNIT_SYSTEMS
 

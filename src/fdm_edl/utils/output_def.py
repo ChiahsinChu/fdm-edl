@@ -1,9 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-from dataclasses import dataclass
-from typing import Dict
+from __future__ import annotations
 
-import jax
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
 import unxt
+
+if TYPE_CHECKING:
+    from typing import Dict
+
+    import jax
 
 from .unit_conversion import check_data_type
 

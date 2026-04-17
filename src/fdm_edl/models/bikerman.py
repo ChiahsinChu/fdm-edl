@@ -9,15 +9,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import quaxed.numpy as jnp
 import unxt
+from jax import numpy as jnp
 
 from ..utils import constants
+from .base import ChargeModel, boltzmann_factor, register
 
 if TYPE_CHECKING:
-    from ..api.electrolyte import Electrolyte
+    from typing import Dict
 
-from .base import ChargeModel, register
+    import jax
+
+    from ..api.electrolyte import Electrolyte
 
 
 # ---------------------------------------------------------------------------
@@ -37,81 +40,96 @@ class BikermanModel(ChargeModel):
     all radii are zero.
     """
 
-    # -- helpers ----------------------------------------------------------
-    @staticmethod
-    def _packing_fractions(electrolyte: Electrolyte) -> list[float]:
-        """Compute ν_j for each ion."""
-        nu = []
-        for ion in electrolyte.ions:
-            r = ion.radius.to("m").value
-            c = ion.molar_conc.to("mol/m^3").value
-            N_A = constants.AVOGADRO_NUMBER.to("1/mol").value
-            nu.append(N_A * (2.0 * r) ** 3 * c)
-        return nu
+    def charge_density(
+        self,
+        phi: jax.Array,
+        electrolyte: Electrolyte,
+        temperature: float,
+    ) -> jax.Array:
+        """Calculate ionic charge density according to Bikerman model.
 
-    @staticmethod
-    def _boltzmann_exponents(phi, electrolyte, temperature):
-        """Return list of exp(-z_i e φ / k_B T) arrays."""
-        phi_V = phi.to("V")
-        kBT = constants.BOLTZMANN_CONSTANT * temperature
-        exps = []
-        for ion in electrolyte.ions:
-            charge = ion.charge.to("C")
-            exponent = (-charge * phi_V / kBT).to("")
-            exps.append(jnp.exp(exponent))
-        return exps
+        Computes the charge density including steric effects from finite
+        ion sizes using the generalized Bikerman lattice-gas model.
 
-    def _denominator(self, phi, electrolyte, temperature):
-        """1 + Σ_j ν_j [exp(-z_j e φ / k_BT) - 1]."""
-        nus = self._packing_fractions(electrolyte)
-        boltz = self._boltzmann_exponents(phi, electrolyte, temperature)
-        denom = 1.0
-        for nu_j, bf_j in zip(nus, boltz):
-            denom = denom + nu_j * (bf_j - 1.0)
-        return denom
+        Parameters
+        ----------
+        phi : jax.Array
+            Electrostatic potential (eV).
+        electrolyte : Electrolyte
+            Electrolyte object containing ion properties and concentrations.
+        temperature : float
+            Temperature (K).
 
-    # -- interface --------------------------------------------------------
-    def charge_density(self, phi, electrolyte, temperature):
-        denom = self._denominator(phi, electrolyte, temperature)
-        boltz = self._boltzmann_exponents(phi, electrolyte, temperature)
+        Returns
+        -------
+        jax.Array
+            Ionic charge density (e / angstrom^3).
 
-        rho_ion = unxt.Quantity(0.0, "C / m^3")
-        for ion, bf in zip(electrolyte.ions, boltz):
-            charge = ion.charge.to("C")
-            bulk_concentration = ion.molar_conc.to("mol/m^3")
-            rho_ion += (
-                charge * bulk_concentration * constants.AVOGADRO_NUMBER * bf / denom
-            )
-        return rho_ion
-
-    def ion_concentration(self, phi, ion, temperature):
-        # For a single ion we still need the full denominator, so we
-        # require the caller to use the system-level helper that passes
-        # the full electrolyte.  Here we provide a partial that works when
-        # the denominator has been pre-computed and stashed.
-        raise NotImplementedError(
-            "Use ElectricalDoubleLayer.get_ion_concentration_profiles() "
-            "for Bikerman — it passes the full electrolyte to compute "
-            "the denominator."
+        Notes
+        -----
+        The Bikerman model accounts for the finite volume occupied by ions,
+        reducing to the Boltzmann model when all ion radii are zero.
+        """
+        # beta: (eV)^(-1)
+        beta: float = 1.0 / (
+            constants.BOLTZMANN_CONSTANT.to("eV / K").value * temperature
         )
+        # rho_ion: e / angstrom^3
+        rho_ion = jnp.zeros_like(phi)
+        sfactor = 1.0
+        for ion in electrolyte.ions.values():
+            z_i = ion._charge
+            rho_ion += (
+                z_i
+                * constants.AVOGADRO_NUMBER.value
+                * ion._molar_conc
+                * jnp.exp(-z_i * phi * beta)
+            )
+            sfactor += (
+                ion._molar_conc * ion._molar_volume * (jnp.exp(-z_i * phi * beta) - 1.0)
+            )
+        return rho_ion / sfactor
 
-    def ion_concentration_full(
+    def ion_concentration_profile(
         self,
         phi: unxt.Quantity,
         electrolyte: Electrolyte,
         temperature: unxt.Quantity,
-    ) -> dict[str, unxt.Quantity]:
-        """Compute all ion concentration profiles at once.
+    ) -> Dict[str, unxt.Quantity]:
+        """Calculate ion concentration profile with steric effects.
+
+        Computes the local ion concentrations at each point in space using
+        the Bikerman model, which includes both electrostatic and steric effects.
+
+        Parameters
+        ----------
+        phi : unxt.Quantity
+            Electrostatic potential with units.
+        electrolyte : Electrolyte
+            Electrolyte object containing ion properties and concentrations.
+        temperature : unxt.Quantity
+            Temperature with units.
 
         Returns
         -------
-        dict[str, unxt.Quantity]
-            Mapping of ion name → local molar concentration.
-        """
-        denom = self._denominator(phi, electrolyte, temperature)
-        boltz = self._boltzmann_exponents(phi, electrolyte, temperature)
+        Dict[str, unxt.Quantity]
+            Dictionary mapping ion names to their concentration profiles (with units).
+            Each concentration field includes the effects of the local potential
+            and finite ion sizes.
 
-        profiles: dict[str, unxt.Quantity] = {}
-        for ion, bf in zip(electrolyte.ions, boltz):
-            profiles[ion.name] = ion.molar_conc * bf / denom
-        return profiles
+        Notes
+        -----
+        The steric factor accounts for the volume fraction of ions at the
+        equilibrium packing limit, preventing infinite concentrations at high
+        potentials.
+        """
+        boltzmann_conc = {}
+        sfactor = 1.0
+        for name, ion in electrolyte.ions.items():
+            boltzmann_conc[name] = ion.molar_conc * boltzmann_factor(
+                phi, temperature, ion.charge
+            )
+            sfactor += (ion.molar_conc * ion.molar_volume).to("") * (
+                boltzmann_factor(phi, temperature, ion.charge) - 1.0
+            )
+        return {name: conc / sfactor for name, conc in boltzmann_conc.items()}
