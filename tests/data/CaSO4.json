@@ -3,7 +3,11 @@
   "temperature": 298.15,
   "electrode": {},
   "electrolyte": {
-    "epsilon_r": 78.5,
+    "solvent": {
+      "name": "water",
+      "eps_0": 78.5,
+      "eps_opt": 1.77
+    },
     "ions": {
       "Ca": {
         "molar_conc": 0.01,

@@ -39,7 +39,7 @@ class TestZZGCS(unittest.TestCase):
         bcs = ()
         bcs += Stern(
             phi=self.phi_0,
-            eps_gc=self.edl_obj.electrolyte.epsilon_r,
+            eps_gc=self.edl_obj.electrolyte.solvent.eps_0,
             eps_s=self.eps_ohp,
             d_s=self.d_ohp,
         )([0])

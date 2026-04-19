@@ -88,7 +88,7 @@ class LinearPoissonBoltzmann(BasePoissonBoltzmann):
         phi_0: unxt.Quantity,
     ) -> unxt.Quantity:
         """sigma = phi_0 * epsilon / lambda_D."""
-        epsilon = self.edl_obj.electrolyte.epsilon
+        epsilon = self.edl_obj.electrolyte.solvent.eps_0 * constants.VACUUM_PERMITTIVITY
         debye_length = self.edl_obj.electrolyte.debye_length
         return cast(
             unxt.Quantity,
@@ -125,7 +125,7 @@ class LinearPoissonBoltzmann(BasePoissonBoltzmann):
         efield = -compute_e_field(_x, phi_0, debye_length).to("V/m")
 
         # Linearised PB charge density profile [mol/L].
-        epsilon = self.edl_obj.electrolyte.epsilon
+        epsilon = self.edl_obj.electrolyte.solvent.eps_0 * constants.VACUUM_PERMITTIVITY
         _rho = (phi_0 * epsilon / debye_length**2) * _linear_exponent(_x, debye_length)
         rho = (_rho / (constants.ELEMENTARY_CHARGE * constants.AVOGADRO_NUMBER)).to(
             "mol/L"
@@ -207,7 +207,7 @@ class NonLinearPoissonBoltzmann(BasePoissonBoltzmann):
         phi_0: unxt.Quantity,
     ) -> unxt.Quantity:
         """Grahame equation: sigma = sqrt(8 eps k_B T c_0 N_A) sinh(z e phi_0 / 2 k_B T)."""
-        epsilon = self.edl_obj.electrolyte.epsilon
+        epsilon = self.edl_obj.electrolyte.solvent.eps_0 * constants.VACUUM_PERMITTIVITY
         grahame_prefactor = jnp.sqrt(
             8
             * constants.BOLTZMANN_CONSTANT

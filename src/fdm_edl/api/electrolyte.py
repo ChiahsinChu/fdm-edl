@@ -76,6 +76,48 @@ class Ion:
 
 
 @dataclass(frozen=True)
+class Solvent:
+    """Solvent properties used for dielectric response.
+
+    Parameters
+    ----------
+    name : str
+        Human-readable solvent name (for example, ``"water"``).
+    eps_0 : float, optional
+        Static relative permittivity (low-frequency dielectric constant).
+        Defaults to ``78.5``.
+    eps_opt : float, optional
+        Optical/high-frequency relative permittivity. Defaults to ``1.77``.
+
+    Notes
+    -----
+    Internal attributes ``_eps_0`` and ``_eps_opt`` store absolute
+    permittivities converted to the metal unit system.
+    """
+
+    name: str
+    eps_0: float = 78.5
+    eps_opt: float = 1.77
+    _eps_0: float = field(init=False, repr=False)
+    _eps_opt: float = field(init=False, repr=False)
+
+    def __post_init__(self):
+        coeff = constants.VACUUM_PERMITTIVITY.to(
+            uc.UNIT_SYSTEMS["metal"]["permittivity"]
+        ).value
+        object.__setattr__(
+            self,
+            "_eps_0",
+            self.eps_0 * coeff,
+        )
+        object.__setattr__(
+            self,
+            "_eps_opt",
+            self.eps_opt * coeff,
+        )
+
+
+@dataclass(frozen=True)
 class Electrolyte:
     """Electrolyte solution model used by the EDL solver.
 
@@ -92,12 +134,13 @@ class Electrolyte:
     """
 
     ions: Dict[str, Ion]
+    solvent: Solvent
     temperature: unxt.Quantity
-    epsilon: unxt.Quantity
-    epsilon_r: float = 78.5
+    # epsilon: unxt.Quantity
+    # epsilon_r: float = 78.5
     electroneutrality: bool = True
     _temperature: float = field(init=False, repr=False)
-    _epsilon: float = field(init=False, repr=False)
+    # _epsilon: float = field(init=False, repr=False)
 
     def __post_init__(self):
         """Validate electrolyte consistency after dataclass initialization.
@@ -124,11 +167,6 @@ class Electrolyte:
             self,
             "_temperature",
             self.temperature.to(uc.UNIT_SYSTEMS["metal"]["temperature"]).value,
-        )
-        object.__setattr__(
-            self,
-            "_epsilon",
-            self.epsilon.to(uc.UNIT_SYSTEMS["metal"]["permittivity"]).value,
         )
 
     @property
@@ -167,7 +205,8 @@ class Electrolyte:
             )  # Infinite Debye length for pure solvent
 
         debye_length = jnp.sqrt(
-            self.epsilon
+            self.solvent.eps_0
+            * constants.VACUUM_PERMITTIVITY
             * constants.BOLTZMANN_CONSTANT
             * self.temperature
             / (

@@ -21,7 +21,7 @@ from ..utils.bc import BoundaryCondition
 from ..utils.grad import GradLaplacian1D
 from ..utils.output_def import EDLStatus
 from .electrode import Electrode
-from .electrolyte import Electrolyte, Ion
+from .electrolyte import Electrolyte, Ion, Solvent
 
 
 class ElectricalDoubleLayer:
@@ -138,10 +138,9 @@ class ElectricalDoubleLayer:
                 (ionic charge as a quantity string, e.g. ``"1 e"``) and
                 ``molar_conc`` (bulk molar concentration as a quantity
                 string, e.g. ``"0.1 mol/L"``).
-            ``epsilon_r`` : float, optional
-                Relative permittivity of the solvent (default: 78.5).
+            ``solvent`` : dict, optional
+                Parameters for the solvent (default: ``{"name": "water"}``).
         """
-        epsilon_r = _params.get("epsilon_r", 78.5)
         params = {
             "ions": {
                 name: Ion(
@@ -167,11 +166,7 @@ class ElectricalDoubleLayer:
                 )
                 for name, data in _params.get("ions", {}).items()
             },
-            "epsilon_r": epsilon_r,
-            "epsilon": epsilon_r
-            * constants.VACUUM_PERMITTIVITY.to(
-                uc.UNIT_SYSTEMS[self._unit_system]["permittivity"]
-            ),
+            "solvent": Solvent(**_params.get("solvent", {"name": "water"})),
             "temperature": self.temperature,
         }
 
@@ -312,9 +307,11 @@ class ElectricalDoubleLayer:
             coordinate=coordinates,
             sigma=cast(
                 unxt.Quantity,
-                (self.electrolyte.epsilon * efield[0]).to(
-                    uc.UNIT_SYSTEMS[self._unit_system]["surface charge density"]
-                ),
+                (
+                    self.electrolyte.solvent.eps_0
+                    * constants.VACUUM_PERMITTIVITY
+                    * efield[0]
+                ).to(uc.UNIT_SYSTEMS[self._unit_system]["surface charge density"]),
             ),
             phi=cast(
                 unxt.Quantity,
@@ -376,7 +373,7 @@ class ElectricalDoubleLayer:
 
         # --- Physics residual at all nodes -----------------------------------
         # residual: V/Angstrom^2
-        residual = lap + rho_ion / self.electrolyte._epsilon
+        residual = lap + rho_ion / self.electrolyte.solvent._eps_0
 
         # --- Apply boundary conditions -----------
         for bc in boundary_conditions:

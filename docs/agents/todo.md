@@ -12,7 +12,7 @@ last_updated: 2026-04-19
 
 - [x] `ElectricalDoubleLayer` base class with `compute()` and `plot()` methods (task.000)
 - [x] SI-unit multi-ion Poisson-Boltzmann solver
-- [x] Solvent dielectric constant `epsilon_r` (default 78.5 for water)
+- [x] Solvent model (`solvent` object with `eps_0` and `eps_opt`) for dielectric properties
 - [x] Load parameters from `dict`, JSON, or YAML file
 - [x] Electroneutrality check on electrolyte input
 - [x] Compute analytical properties (e.g., Debye length) without solving the full PDE

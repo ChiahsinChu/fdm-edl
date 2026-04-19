@@ -6,6 +6,21 @@ last_updated: 2026-04-19
 
 # CHANGELOG
 
+## [0.1.dev8] - 2026-04-19
+
+### Added
+
+- `Solvent` dataclass in `fdm_edl.api.electrolyte` with static (`eps_0`) and optical (`eps_opt`) relative permittivities plus internal unit-system conversions
+- NumPy-style API docstring for `Solvent`
+- Explicit `solvent` blocks in example and test electrolyte JSON inputs
+
+### Changed
+
+- `Electrolyte` now stores solvent properties via `solvent: Solvent` instead of scalar `epsilon`/`epsilon_r` fields
+- `ElectricalDoubleLayer` electrolyte parameter parsing now constructs a `Solvent` object and accepts a `solvent` dictionary in input files
+- Electrostatics/benchmark paths now use `electrolyte.solvent.eps_0` for permittivity-dependent calculations (residual, Debye length, sigma, PB analytical profiles)
+- GCS example notebook and Z-Z GCS test updated to use the new solvent-based API
+
 ## [0.1.dev7] - 2026-04-19
 
 ### Added
