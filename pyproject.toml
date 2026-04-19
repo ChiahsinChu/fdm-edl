@@ -18,8 +18,8 @@ requires-python = ">=3.11, <3.14"
 # https://docs.jax.dev/en/latest/deprecation.html
 # https://docs.scipy.org/doc/scipy/dev/toolchain.html#other-libraries
 dependencies = [
-    "jax>=0.7.2",
-    "jaxlib>=0.7.2",
+    "jax>=0.7.2, <0.8.0",
+    "jaxlib>=0.7.2, <0.8.0",
     "numpy>=1.23.5, <2.5.0",
     "scipy>=1.14, <1.16",
     "optax>=0.2.8",

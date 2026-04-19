@@ -9,7 +9,7 @@ default:
 # This runs at the start of every job in the pipeline
 before_script:
   - python -m pip install --upgrade pip
-  - pip install ".[all]"
+  - pip install ".[test]"
 
 # Define the stages of the pipeline
 stages:
