@@ -6,6 +6,19 @@ last_updated: 2026-04-19
 
 # CHANGELOG
 
+## [0.1.dev7] - 2026-04-19
+
+### Added
+
+- GitLab CI pipeline configuration in `.gitlab-ci.yml` with multi-version Python test jobs (`3.11`, `3.12`, `3.13`)
+- JUnit test report artifact export (`report.xml`) for unit-test jobs
+- Coverage stage with `pytest --cov=fdm_edl tests/` and GitLab coverage regex parsing
+- Static type-check stage running `mypy src/fdm_edl`
+
+### Changed
+
+- Standardized CI default image and setup steps to install dependencies via `pip install ".[all]"` before each job
+
 ## [0.1.dev6] - 2026-04-19
 
 ### Added

@@ -53,5 +53,5 @@ last_updated: 2026-04-19
 
 ## Chores
 
-- [ ] Set up CI from GitHub workflow files (https://docs.gitlab.com/ci/migration/github_actions/)
+- [x] Set up CI from GitHub workflow files (https://docs.gitlab.com/ci/migration/github_actions/)
 - [ ] Check GPU compatibility for JAX solver

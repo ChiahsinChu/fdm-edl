@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# https://docs.gitlab.com/ci/
+# https://docs.gitlab.com/ci/yaml/
+
+# Define the default docker image for all jobs in the pipeline
+default:
+  image: python:3.11
+
+# This runs at the start of every job in the pipeline
+before_script:
+  - python -m pip install --upgrade pip
+  - pip install ".[all]"
+
+# Define the stages of the pipeline
+stages:
+  - test
+  - coverage
+  - type-check
+
+# https://docs.gitlab.com/ci/testing/unit_test_report_examples/
+.test-template:
+  stage: test
+  script:
+    - pytest --junitxml=report.xml tests/
+  artifacts:
+    when: always
+    reports:
+      junit: report.xml
+  rules:
+    - if: "$CI_COMMIT_BRANCH"
+
+test_python_3_11:
+  extends: .test-template
+
+test_python_3_12:
+  extends: .test-template
+  image: python:3.12
+
+test_python_3_13:
+  extends: .test-template
+  image: python:3.13
+
+# https://docs.gitlab.com/ci/testing/code_coverage/
+codecov:
+  stage: coverage
+  script:
+    - pytest --cov=fdm_edl tests/
+  coverage: '/TOTAL.*? (100(?:\.0+)?\%|[1-9]?\d(?:\.\d+)?\%)$/'
+  rules:
+    - if: "$CI_COMMIT_BRANCH"
+
+type_check:
+  stage: type-check
+  script:
+    - mypy src/fdm_edl
+  rules:
+    - if: "$CI_COMMIT_BRANCH"
