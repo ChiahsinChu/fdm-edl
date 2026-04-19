@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import jax
-import optax
+import optax  # type: ignore[import-untyped]
+import unxt
 from jax import numpy as jnp
 
 if TYPE_CHECKING:
@@ -56,7 +57,7 @@ class BaseIsotherm(ABC):
 
         self._temperature = temperature.to("K").value
 
-        self.status: IsothermStatus = None
+        self.status: IsothermStatus | None = None
 
     def compute(
         self,
@@ -93,16 +94,36 @@ class BaseIsotherm(ABC):
 
         if len(all_phi.shape) == 0:
             # single value
-            all_theta = self._compute(all_phi, max_iter=max_iter, lr=lr, tol=tol, x0=x0)
+            all_theta = jnp.asarray(
+                self._compute(
+                    float(all_phi),
+                    max_iter=max_iter,
+                    lr=lr,
+                    tol=tol,
+                    x0=x0,
+                )
+            )
         elif len(all_phi.shape) == 1:
             # array
-            all_theta = []
+            all_theta_list = []
             for _phi in all_phi:
-                theta = self._compute(_phi, max_iter=max_iter, lr=lr, tol=tol, x0=x0)
-                all_theta.append(theta)
-            all_theta = jnp.array(all_theta)
+                theta = self._compute(
+                    float(_phi),
+                    max_iter=max_iter,
+                    lr=lr,
+                    tol=tol,
+                    x0=x0,
+                )
+                all_theta_list.append(theta)
+            all_theta = jnp.asarray(all_theta_list)
         else:
             raise ValueError("Unsupported shape for phi")
+
+        lateral_interaction = cast(
+            unxt.Quantity,
+            self.lateral_interaction(all_theta)
+            * (constants.MOLAR_GAS_CONSTANT * self.temperature),
+        )
 
         self.status = IsothermStatus(
             phi=phi,
@@ -110,8 +131,7 @@ class BaseIsotherm(ABC):
             temperature=self.temperature,
             n_et=self.n_et,
             coverage_max=self.theta_max,
-            lateral_interaction=self.lateral_interaction(all_theta)
-            * (constants.MOLAR_GAS_CONSTANT * self.temperature),
+            lateral_interaction=lateral_interaction,
         )
 
         return self.status

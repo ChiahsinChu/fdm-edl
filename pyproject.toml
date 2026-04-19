@@ -25,6 +25,7 @@ dependencies = [
     "optax>=0.2.8",
     "unxt>=1.11.0",
     "matplotlib",
+    "types-PyYAML",
 ]
 [project.urls]
 Homepage = "https://jugit.fz-juelich.de/ZhuJia-Xin/fdm-edl.git"

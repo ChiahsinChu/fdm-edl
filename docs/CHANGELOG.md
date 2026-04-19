@@ -1,10 +1,30 @@
 ---
 status: draft
 author: Jia-Xin Zhu, AI Agent
-last_updated: 2026-04-16
+last_updated: 2026-04-19
 ---
 
 # CHANGELOG
+
+## [0.1.dev6] - 2026-04-19
+
+### Added
+
+- Type-stub dependency `types-PyYAML` in project dependencies to improve static checking support
+- Public `BoundaryCondition.is_dirichlet` property for safer boundary-condition handling in solvers
+
+### Changed
+
+- Tightened type annotations across core modules (`api`, `models`, `isotherm`, `benchmark`, `utils`) with explicit optional/result typing, `cast(...)` usage, and improved return signatures
+- Refined `ElectricalDoubleLayer` solver pipeline to use explicitly JIT-compiled gradient function naming and array-normalized initial guesses
+- Simplified package top-level metadata in `fdm_edl.__init__` by removing eager submodule exports and clarifying package scope in the docstring
+- Updated benchmark helpers for improved scalar/array handling and typed external imports
+
+### Fixed
+
+- `BoundaryCondition.apply` now handles missing gradients for Dirichlet conditions and raises clear errors for non-Dirichlet usage without gradient input
+- Newton solver now relies on the public Dirichlet flag instead of private internals when clamping boundary values
+- `charge_density_profile` now validates empty concentration inputs explicitly and avoids fragile array summation behavior
 
 ## [0.1.dev5] - 2026-04-17
 

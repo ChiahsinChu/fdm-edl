@@ -2,7 +2,7 @@
 """Physical constants used by fdm-edl."""
 
 import unxt
-from scipy import constants as _const
+from scipy import constants as _const  # type: ignore[import-untyped]
 
 # elementary charge in Coulombs
 ELEMENTARY_CHARGE = unxt.Quantity(_const.elementary_charge, "C")

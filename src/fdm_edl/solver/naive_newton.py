@@ -83,7 +83,7 @@ class NewtonSolver(BaseSolver, methods=("newton",)):
 
         # clamp Dirichlet nodes in the initial guess
         for bc in boundary_conditions:
-            if bc._is_dirichlet:
+            if bc.is_dirichlet:
                 phi = bc.clamp_dirichlet(phi)
 
         # Inner JIT-compiled solve.  residual_fn, boundary_conditions,
@@ -98,7 +98,7 @@ class NewtonSolver(BaseSolver, methods=("newton",)):
             def body_fn(state):
                 phi, _, n_iter = state
                 for bc in boundary_conditions:
-                    if bc._is_dirichlet:
+                    if bc.is_dirichlet:
                         phi = bc.clamp_dirichlet(phi)
                 res = residual_fn(phi, boundary_conditions, *args)
                 jac = jax.jacobian(residual_fn)(phi, boundary_conditions, *args)
@@ -112,7 +112,7 @@ class NewtonSolver(BaseSolver, methods=("newton",)):
             phi, converged, n_iter = jax.lax.while_loop(cond_fn, body_fn, init_state)
             # clamp once more after the final step update
             for bc in boundary_conditions:
-                if bc._is_dirichlet:
+                if bc.is_dirichlet:
                     phi = bc.clamp_dirichlet(phi)
             # Cut gradients: differentiating through the Newton loop is
             # not useful and would checkpoint every iteration's Jacobian.

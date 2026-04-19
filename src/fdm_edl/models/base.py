@@ -18,6 +18,7 @@ from ..api.electrolyte import Electrolyte
 
 if TYPE_CHECKING:
     from typing import Dict
+    import jax
 from ..utils import constants
 from ..utils.unit_conversion import UNIT_SYSTEMS
 
@@ -70,24 +71,25 @@ class ChargeModel(ABC):
     @abstractmethod
     def charge_density(
         self,
-        phi: unxt.Quantity,
+        phi: jax.Array,
         electrolyte: Electrolyte,
-        temperature: unxt.Quantity,
-    ) -> unxt.Quantity:
+        temperature: float,
+    ) -> jax.Array:
         """Total ionic charge density ρ_ion [C/m³] at every grid node.
 
         Parameters
         ----------
-        phi : unxt.Quantity, shape (n_grid,)
-            Electrostatic potential.
+        phi : jax.Array, shape (n_grid,)
+            Electrostatic potential in the internal unit system (V).
         electrolyte : Electrolyte
             Electrolyte definition (ions, permittivity, …).
-        temperature : unxt.Quantity
-            Absolute temperature.
+        temperature : float
+            Absolute temperature in Kelvin.
 
         Returns
         -------
-        unxt.Quantity, shape (n_grid,)
+        jax.Array, shape (n_grid,)
+            Ionic charge density in the internal unit system (e/angstrom^3).
         """
         ...
 
@@ -147,10 +149,14 @@ def charge_density_profile(
     ion_concentration_profile: Dict[str, unxt.Quantity],
 ) -> unxt.Quantity:
     """Compute the ionic charge density profile from ion concentration profiles."""
-    ion_conc = []
-    for _conc in ion_concentration_profile.values():
-        ion_conc.append(_conc)
-    ion_conc = jnp.sum(jnp.array(ion_conc), axis=0).to("mol / L")
+    if len(ion_concentration_profile) == 0:
+        raise ValueError("ion_concentration_profile must not be empty")
+
+    ion_conc_iter = iter(ion_concentration_profile.values())
+    ion_conc = next(ion_conc_iter)
+    for _conc in ion_conc_iter:
+        ion_conc = ion_conc + _conc
+    ion_conc = ion_conc.to("mol / L")
     # from molar concentration (mol/L) to charge density (e/Å³)
     rho_ion = (ion_conc * constants.AVOGADRO_NUMBER * constants.ELEMENTARY_CHARGE).to(
         UNIT_SYSTEMS["metal"]["electrical charge density"]

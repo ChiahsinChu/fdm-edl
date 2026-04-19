@@ -71,9 +71,7 @@ class BikermanModel(ChargeModel):
         reducing to the Boltzmann model when all ion radii are zero.
         """
         # beta: (eV)^(-1)
-        beta: float = 1.0 / (
-            constants.BOLTZMANN_CONSTANT.to("eV / K").value * temperature
-        )
+        beta = 1.0 / (constants.BOLTZMANN_CONSTANT.to("eV / K").value * temperature)
         # rho_ion: e / angstrom^3
         rho_ion = jnp.zeros_like(phi)
         sfactor = 1.0

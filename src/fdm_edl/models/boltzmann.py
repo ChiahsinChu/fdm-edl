@@ -42,9 +42,7 @@ class BoltzmannModel(ChargeModel):
         temperature: float,
     ) -> jax.Array:
         # beta: (eV)^(-1)
-        beta: float = 1.0 / (
-            constants.BOLTZMANN_CONSTANT.to("eV / K").value * temperature
-        )
+        beta = 1.0 / (constants.BOLTZMANN_CONSTANT.to("eV / K").value * temperature)
         # rho_ion: e / angstrom^3
         rho_ion = jnp.zeros_like(phi)
         for ion in electrolyte.ions.values():

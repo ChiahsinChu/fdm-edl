@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import jax.numpy as jnp
@@ -46,6 +46,7 @@ class BoundaryCondition:
     beta: unxt.Quantity | float
     gamma: unxt.Quantity | float
     node_indices: jax.Array | Sequence[int]
+    _is_dirichlet: bool = field(init=False, repr=False)
 
     def __post_init__(self):
         indices = jnp.asarray(self.node_indices)
@@ -100,8 +101,14 @@ class BoundaryCondition:
             ``self.node_indices``.
         """
         idx = self.node_indices
+        if grad is None:
+            if self.beta != 0:
+                raise ValueError("grad must be provided for Neumann/Robin BCs")
+            grad_term = 0.0
+        else:
+            grad_term = grad[idx]
         residual = residual.at[idx].set(
-            self.alpha * phi[idx] + self.beta * grad[idx] + self.gamma
+            self.alpha * phi[idx] + self.beta * grad_term + self.gamma
         )
         return residual
 
@@ -125,3 +132,8 @@ class BoundaryCondition:
         if self._is_dirichlet:
             phi = phi.at[self.node_indices].set(-self.gamma / self.alpha)
         return phi
+
+    @property
+    def is_dirichlet(self) -> bool:
+        """Whether this boundary condition is Dirichlet."""
+        return self._is_dirichlet

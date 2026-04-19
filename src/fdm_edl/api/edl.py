@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import copy
 import pathlib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import jax
 import jax.numpy as jnp
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 from ..models import ChargeModel, create_charge_model
 from ..models.base import charge_density_profile
-from ..solver.base import BaseSolver
+from ..solver.base import BaseSolver, RootSolveResult
 from ..utils import constants, load_dict
 from ..utils import unit_conversion as uc
 from ..utils.bc import BoundaryCondition
@@ -107,8 +107,8 @@ class ElectricalDoubleLayer:
         self.set_solver(self._params.get("solver", {}))
 
         # placeholders for results
-        self.result = None
-        self._solver_result = None
+        self.result: EDLStatus | None = None
+        self._solver_result: RootSolveResult | None = None
 
     def set_electrode(self, _params: dict):
         """
@@ -121,10 +121,7 @@ class ElectricalDoubleLayer:
             Currently unused; the electrode is initialised with the system
             temperature only.
         """
-        params = {
-            "temperature": self.temperature,
-        }
-        self.electrode = Electrode(**params)
+        self.electrode = Electrode(temperature=self.temperature)
 
     def set_electrolyte(self, _params: dict):
         """
@@ -201,7 +198,7 @@ class ElectricalDoubleLayer:
         _params : dict
             Keyword arguments forwarded to :class:`~fdm_edl.solver.BaseSolver`.
         """
-        self.solver = BaseSolver(**_params)
+        self.solver = cast(BaseSolver, BaseSolver(**_params))
 
     def compute(
         self,
@@ -269,11 +266,12 @@ class ElectricalDoubleLayer:
                     f"Numerical gradient operator for dim={self.dim} is not yet implemented. "
                     "Pass a GradLaplacian1D explicitly."
                 )
-        grad_op = jax.jit(grad_op)
+        grad_fn = jax.jit(grad_op)
 
         # --- Zero initial guess if not provided ----------------
         if _phi0 is None:
             _phi0 = jnp.zeros((n_grid,))
+        _phi0 = jnp.asarray(_phi0)
 
         # --- Solve -----------------------------------------------------------
         # for bc in boundary_conditions:
@@ -285,17 +283,21 @@ class ElectricalDoubleLayer:
             _phi0,
             boundary_conditions,
             coordinates_1d,
-            grad_op,
+            grad_fn,
         )
+        assert self._solver_result is not None
 
         #  --- post-process results ------------------------------------------------
         phi_final = self._solver_result.solution
-        grad, _ = grad_op(
+        grad, _ = grad_fn(
             coordinates_1d, phi_final, h=coordinates_1d[1] - coordinates_1d[0]
         )
-        efield = unxt.Quantity(
-            -grad, unit=uc.UNIT_SYSTEMS["metal"]["electrical field strength"]
-        ).to(uc.UNIT_SYSTEMS[self._unit_system]["electrical field strength"])
+        efield = cast(
+            unxt.Quantity,
+            unxt.Quantity(
+                -grad, unit=uc.UNIT_SYSTEMS["metal"]["electrical field strength"]
+            ).to(uc.UNIT_SYSTEMS[self._unit_system]["electrical field strength"]),
+        )
         ion_conc = self.charge_model.ion_concentration_profile(
             unxt.Quantity(
                 phi_final,
@@ -308,16 +310,25 @@ class ElectricalDoubleLayer:
         # calculate sigma from E-field at the electrode surface
         self.result = EDLStatus(
             coordinate=coordinates,
-            sigma=(self.electrolyte.epsilon * efield[0]).to(
-                uc.UNIT_SYSTEMS[self._unit_system]["surface charge density"]
+            sigma=cast(
+                unxt.Quantity,
+                (self.electrolyte.epsilon * efield[0]).to(
+                    uc.UNIT_SYSTEMS[self._unit_system]["surface charge density"]
+                ),
             ),
-            phi=unxt.Quantity(
-                phi_final,
-                unit=uc.UNIT_SYSTEMS["metal"]["electrical potential"],
-            ).to(uc.UNIT_SYSTEMS[self._unit_system]["electrical potential"]),
+            phi=cast(
+                unxt.Quantity,
+                unxt.Quantity(
+                    phi_final,
+                    unit=uc.UNIT_SYSTEMS["metal"]["electrical potential"],
+                ).to(uc.UNIT_SYSTEMS[self._unit_system]["electrical potential"]),
+            ),
             efield=efield,
-            rho=rho_ion.to(
-                uc.UNIT_SYSTEMS[self._unit_system]["electrical charge density"]
+            rho=cast(
+                unxt.Quantity,
+                rho_ion.to(
+                    uc.UNIT_SYSTEMS[self._unit_system]["electrical charge density"]
+                ),
             ),
             ion_conc=ion_conc,
         )
@@ -335,21 +346,22 @@ class ElectricalDoubleLayer:
         The physics equation ∇²φ + ρ_ion/ε = 0 is evaluated everywhere,
         then each boundary condition overwrites its nodes' residual entries
         with the appropriate constraint.
+        Note: Use jax.Array rather than unxt.Quantity for the input and output of this function
 
         Parameters
         ----------
-        phi : unxt.Quantity, shape (n_grid,)
+        phi : jax.Array, shape (n_grid,)
             Electrostatic potential at every grid node.
         grad_op : GradLaplacian1D
             Discrete gradient operator built for this grid.
         boundary_conditions : sequence of BoundaryCondition
             Boundary conditions to enforce.
-        coordinates : unxt.Quantity, shape (n_grid, n_dim)
+        coordinates : jax.Array, shape (n_grid,) or (n_grid, n_dim)
             Grid coordinates (2-D array).
 
         Returns
         -------
-        residual : unxt.Quantity, shape (n_grid,)
+        residual : jax.Array, shape (n_grid,)
             Residual at each node.  Zero when the discretised
             Poisson-Boltzmann equation and all BCs are satisfied.
         """
@@ -359,7 +371,7 @@ class ElectricalDoubleLayer:
 
         # --- Ionic charge density (delegated to charge model) ----------------
         rho_ion = self.charge_model.charge_density(
-            phi, self.electrolyte, self._temperature
+            jnp.asarray(phi), self.electrolyte, self._temperature
         )
 
         # --- Physics residual at all nodes -----------------------------------

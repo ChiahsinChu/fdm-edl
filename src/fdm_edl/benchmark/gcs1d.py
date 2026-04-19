@@ -10,8 +10,8 @@ import jax
 import quaxed as qjax
 import quaxed.numpy as jnp
 import unxt
-from astropy.units import cds
-from scipy.optimize import brentq
+from astropy.units import cds  # type: ignore[import-untyped]
+from scipy.optimize import brentq  # type: ignore[import-untyped]
 
 from ..models.base import boltzmann_factor
 from ..utils import constants
@@ -135,7 +135,7 @@ class GCSModel(NonLinearPoissonBoltzmann):
                 .value
             )
             sigma_ohp = sigma_h - sigma_gc
-            return sigma_ohp
+            return float(sigma_ohp)
 
         if abs(phi_0_value) < 1e-15:
             phi_ohp = unxt.Quantity(0.0, "V")
@@ -147,7 +147,7 @@ class GCSModel(NonLinearPoissonBoltzmann):
         sigma = self.phi0_to_sigma(phi_ohp).to(cds.e / unxt.unit("angstrom^2"))
 
         # calculate phi profile
-        phi = unxt.Quantity(jnp.zeros_like(_x).value, "V")
+        phi = unxt.Quantity(jnp.zeros_like(_x.value), "V")
         _phi = self.compute_phi(
             _x - self.d_ohp.to("angstrom"),
             phi_ohp,
@@ -168,7 +168,7 @@ class GCSModel(NonLinearPoissonBoltzmann):
         )
 
         # calculate efield profile
-        efield = unxt.Quantity(jnp.zeros_like(_x).value, "V/angstrom")
+        efield = unxt.Quantity(jnp.zeros_like(_x.value), "V/angstrom")
         efield = efield.at[mask_gc].set(
             -qjax.vmap(
                 qjax.grad(self.compute_phi), in_axes=(0, None, None, None, None)

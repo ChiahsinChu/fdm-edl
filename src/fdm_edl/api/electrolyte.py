@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, cast
 
 import quaxed.numpy as jnp
 import unxt
-from astropy.units import cds
+from astropy.units import cds  # type: ignore[import-untyped]
 
 if TYPE_CHECKING:
     from typing import Dict
@@ -35,9 +35,12 @@ class Ion:
     name: str
     charge: unxt.Quantity
     molar_conc: unxt.Quantity
-    radius: unxt.Quantity = unxt.Quantity(
-        0.0, "angstrom"
-    )  # Optional: ionic radius for steric effects
+    radius: unxt.Quantity = unxt.Quantity(0.0, "angstrom")
+    _charge: float = field(init=False, repr=False)
+    _molar_conc: float = field(init=False, repr=False)
+    _radius: float = field(init=False, repr=False)
+    molar_volume: unxt.Quantity = field(init=False, repr=False)
+    _molar_volume: float = field(init=False, repr=False)
 
     def __post_init__(self):
         object.__setattr__(
@@ -93,6 +96,8 @@ class Electrolyte:
     epsilon: unxt.Quantity
     epsilon_r: float = 78.5
     electroneutrality: bool = True
+    _temperature: float = field(init=False, repr=False)
+    _epsilon: float = field(init=False, repr=False)
 
     def __post_init__(self):
         """Validate electrolyte consistency after dataclass initialization.
@@ -137,13 +142,13 @@ class Electrolyte:
             Ionic strength, computed as
             :math:`I = \frac{1}{2}\\sum_i z_i^2 c_i`.
         """
-        ionic_strength = unxt.Q(0.0, "mol / L")
+        ionic_strength = unxt.Quantity(0.0, "mol / L")
         if len(self.ions) > 0:
             for ion in self.ions.values():
                 z = ion.charge.to(cds.e).value
                 c = ion.molar_conc
                 ionic_strength += 0.5 * z**2 * c
-        return ionic_strength.to("mol / L")
+        return cast(unxt.Quantity, ionic_strength.to("mol / L"))
 
     @property
     def debye_length(self) -> unxt.Quantity:
@@ -157,7 +162,7 @@ class Electrolyte:
             zero ionic strength.
         """
         if self.ionic_strength == 0.0:
-            return unxt.Q(
+            return unxt.Quantity(
                 float("inf"), "angstrom"
             )  # Infinite Debye length for pure solvent
 
@@ -172,6 +177,7 @@ class Electrolyte:
                 * self.ionic_strength
             )
         )
-        return debye_length.to(
-            uc.UNIT_SYSTEMS["metal"]["length"]
-        )  # Convert to Angstrom (Å)
+        return cast(
+            unxt.Quantity,
+            debye_length.to(uc.UNIT_SYSTEMS["metal"]["length"]),
+        )

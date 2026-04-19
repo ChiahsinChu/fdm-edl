@@ -20,11 +20,11 @@ once at import time from :mod:`unxt` and :mod:`astropy.units`.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, cast
 
-import astropy.units as apyu
+import astropy.units as apyu  # type: ignore[import-untyped]
 import unxt
-from astropy.units import cds
+from astropy.units import cds  # type: ignore[import-untyped]
 
 from .constants import AVOGADRO_NUMBER, ELEMENTARY_CHARGE
 
@@ -107,7 +107,7 @@ unit_labels: dict[str, dict[str, str]] = {
 # ---------------------------------------------------------------------------
 # unxt / astropy unit objects
 # ---------------------------------------------------------------------------
-base_unit_systems: dict[str, dict[str, object]] = {
+base_unit_systems: dict[str, dict[str, apyu.UnitBase]] = {
     "metal": {
         "length": unxt.unit("angstrom"),
         "time": unxt.unit("ps"),
@@ -162,7 +162,9 @@ _derived_formulas: dict[str, dict[str, int]] = {
 }
 
 
-def _build_derived_unit_dict(base_unit_dict: dict[str, object]) -> dict[str, object]:
+def _build_derived_unit_dict(
+    base_unit_dict: dict[str, apyu.UnitBase],
+) -> dict[str, apyu.UnitBase]:
     """Compute full factor table (base + derived) from base factors."""
     derived_unit_dict = {}
     for kw, formula in _derived_formulas.items():
@@ -241,7 +243,7 @@ def rho_to_molar_concentration(rho: unxt.Quantity) -> unxt.Quantity:
     """Convert charge density to molar concentration (mol/L)."""
     check_data_type(rho, "electrical charge density")
     molar_conc = rho / (ELEMENTARY_CHARGE * AVOGADRO_NUMBER)
-    return molar_conc.to("mol / L")
+    return cast(unxt.Quantity, molar_conc.to("mol / L"))
 
 
 __all__ = [

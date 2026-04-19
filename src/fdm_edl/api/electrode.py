@@ -17,4 +17,4 @@ class Electrode:
     """
 
     metal: str = "Pt"
-    temperature: unxt.Quantity = None  # in K
+    temperature: unxt.Quantity | None = None  # in K

@@ -1,7 +1,7 @@
 ---
 status: draft
 author: Jia-Xin Zhu, AI Agent
-last_updated: 2026-04-16
+last_updated: 2026-04-19
 ---
 
 # Development Plans
@@ -14,9 +14,10 @@ last_updated: 2026-04-16
 
 ### Charge models
 
-- [ ] Bikerman model with single cation/anion types
-- [ ] Bikerman model with mixed cation/anion types
+- [x] Bikerman model with single cation/anion types
 - [ ] Add solvent response (Langevin)
+- [ ] Add solvent response (Booth)
+- [ ] Bikerman model with mixed cation/anion types
 
 ### Boundary conditions
 
@@ -36,6 +37,9 @@ last_updated: 2026-04-16
 - [x] Electroneutrality check on electrolyte input
 - [x] Compute analytical properties (e.g., Debye length) without solving the full PDE
 - [x] Add physical units to output results and plots (e.g., via [`unxt`](https://github.com/GalacticDynamics/unxt))
+- [x] Bikerman model with single cation/anion types
+- [x] Improve type annotations and static-type compatibility in API/model/solver modules
+- [x] Add safer BC residual application and public Dirichlet accessor (`is_dirichlet`)
 
 ## Documentation
 
@@ -49,4 +53,5 @@ last_updated: 2026-04-16
 
 ## Chores
 
+- [ ] Set up CI from GitHub workflow files (https://docs.gitlab.com/ci/migration/github_actions/)
 - [ ] Check GPU compatibility for JAX solver

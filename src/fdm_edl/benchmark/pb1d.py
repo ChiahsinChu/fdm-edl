@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+from typing import cast
+
 import jax
 import quaxed as qjax
 import quaxed.numpy as jnp
 import unxt
-from astropy.units import cds
+from astropy.units import cds  # type: ignore[import-untyped]
 
 from ..api import ElectricalDoubleLayer
 from ..models.base import boltzmann_factor
@@ -14,7 +16,7 @@ from ..utils.output_def import EDLStatus
 @jax.jit
 def _linear_exponent(x: unxt.Quantity, debye_length: unxt.Quantity) -> unxt.Quantity:
     """Dimensionless exponential decay factor exp(-x / λ_D)."""
-    return jnp.exp(-(x / debye_length))
+    return cast(unxt.Quantity, jnp.exp(-(x / debye_length)))
 
 
 class BasePoissonBoltzmann:
@@ -37,7 +39,7 @@ class BasePoissonBoltzmann:
         )
 
         # placeholders for results to be computed in compute()
-        self.edl_status = None
+        self.edl_status: EDLStatus | None = None
 
     def phi0_to_sigma(
         self,
@@ -88,7 +90,10 @@ class LinearPoissonBoltzmann(BasePoissonBoltzmann):
         """sigma = phi_0 * epsilon / lambda_D."""
         epsilon = self.edl_obj.electrolyte.epsilon
         debye_length = self.edl_obj.electrolyte.debye_length
-        return (phi_0 * epsilon / debye_length).to(cds.e / unxt.unit("angstrom^2"))
+        return cast(
+            unxt.Quantity,
+            (phi_0 * epsilon / debye_length).to(cds.e / unxt.unit("angstrom^2")),
+        )
 
     @staticmethod
     @jax.jit
@@ -166,7 +171,9 @@ class NonLinearPoissonBoltzmann(BasePoissonBoltzmann):
             self._validate_symmetric_binary_electrolyte()
         )
 
-    def _validate_symmetric_binary_electrolyte(self) -> unxt.Quantity:
+    def _validate_symmetric_binary_electrolyte(
+        self,
+    ) -> tuple[unxt.Quantity, unxt.Quantity]:
         ions = self.edl_obj.electrolyte.ions
         if len(ions) != 2:
             raise ValueError(
@@ -175,8 +182,11 @@ class NonLinearPoissonBoltzmann(BasePoissonBoltzmann):
             )
 
         z_tot = 0.0
+        zi = 0.0
         for name, ion in ions.items():
-            zi = ion.charge.to("C").value / constants.ELEMENTARY_CHARGE.to("C").value
+            zi = float(
+                ion.charge.to("C").value / constants.ELEMENTARY_CHARGE.to("C").value
+            )
             z_tot += zi
 
         # symmetric binary electrolyte: valences must be +1 and -1
@@ -276,6 +286,7 @@ if __name__ == "__main__":
 
     linear_pb = LinearPoissonBoltzmann(edl_obj=edl_obj)
     linear_pb.compute(x=x, phi_0=phi_0)
+    assert linear_pb.edl_status is not None
     # potential in V
     print(linear_pb.edl_status.phi)
     # sigma derived from phi_0
@@ -283,17 +294,19 @@ if __name__ == "__main__":
     # charge density in mol/L
     print(linear_pb.edl_status.rho)
     # ion conc in mol/L
-    c_cation = linear_pb.edl_status.ion_conc[edl_obj.electrolyte.ions[0].name]
-    c_anion = linear_pb.edl_status.ion_conc[edl_obj.electrolyte.ions[1].name]
+    ion_names = list(edl_obj.electrolyte.ions)
+    c_cation = linear_pb.edl_status.ion_conc[ion_names[0]]
+    c_anion = linear_pb.edl_status.ion_conc[ion_names[1]]
     print(c_cation, c_anion)
 
     non_linear_pb = NonLinearPoissonBoltzmann(edl_obj=edl_obj)
     non_linear_pb.compute(x=x, phi_0=phi_0)
+    assert non_linear_pb.edl_status is not None
     # potential in V
     print(non_linear_pb.edl_status.phi)
     # sigma derived from Grahame equation
     print(non_linear_pb.edl_status.sigma)
     # ion conc in mol/L
-    c_cation = non_linear_pb.edl_status.ion_conc[edl_obj.electrolyte.ions[0].name]
-    c_anion = non_linear_pb.edl_status.ion_conc[edl_obj.electrolyte.ions[1].name]
+    c_cation = non_linear_pb.edl_status.ion_conc[ion_names[0]]
+    c_anion = non_linear_pb.edl_status.ion_conc[ion_names[1]]
     print(c_cation, c_anion)
