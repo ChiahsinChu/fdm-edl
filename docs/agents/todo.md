@@ -8,27 +8,7 @@ last_updated: 2026-04-19
 
 ## Features
 
-### Nanotubes
-
-- [ ] OPs for cylindrical coordinates
-
-### Charge models
-
-- [x] Bikerman model with single cation/anion types
-- [ ] Add solvent response (Langevin)
-- [ ] Add solvent response (Booth)
-- [ ] Bikerman model with mixed cation/anion types
-
-### Boundary conditions
-
-- [ ] single chemisorption (Frumkin isotherm, known: lateral coefficient & potential)
-- [ ] multi chemisorption equilibrium
-
-### 2D/3D FEM
-
-- [ ] Add interface to [JAX-FEM](https://github.com/deepmodeling/jax-fem) for 2D/3D cases
-
-### Done
+### General
 
 - [x] `ElectricalDoubleLayer` base class with `compute()` and `plot()` methods (task.000)
 - [x] SI-unit multi-ion Poisson-Boltzmann solver
@@ -37,9 +17,32 @@ last_updated: 2026-04-19
 - [x] Electroneutrality check on electrolyte input
 - [x] Compute analytical properties (e.g., Debye length) without solving the full PDE
 - [x] Add physical units to output results and plots (e.g., via [`unxt`](https://github.com/GalacticDynamics/unxt))
-- [x] Bikerman model with single cation/anion types
 - [x] Improve type annotations and static-type compatibility in API/model/solver modules
+
+### Charge models
+
+- [ ] Add solvent response (Booth)
+- [ ] Bikerman model with mixed cation/anion types
+- [x] Add solvent response (Langevin)
+- [x] Bikerman model with single cation/anion types
+
+### Boundary conditions
+
+- [ ] multi chemisorption equilibrium
+- [x] single chemisorption (Frumkin isotherm, known: lateral coefficient & potential)
 - [x] Add safer BC residual application and public Dirichlet accessor (`is_dirichlet`)
+
+### Optimizer
+
+- [ ] Add general interfaces to optax
+
+### 2D/3D FEM
+
+- [ ] Add interface to [JAX-FEM](https://github.com/deepmodeling/jax-fem) for 2D/3D cases
+
+### Nanotubes
+
+- [ ] OPs for cylindrical coordinates
 
 ## Documentation
 

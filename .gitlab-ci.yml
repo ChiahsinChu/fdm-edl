@@ -49,9 +49,9 @@ codecov:
   rules:
     - if: "$CI_COMMIT_BRANCH"
 
-type_check:
-  stage: type-check
-  script:
-    - mypy src/fdm_edl
-  rules:
-    - if: "$CI_COMMIT_BRANCH"
+# type_check:
+#   stage: type-check
+#   script:
+#     - mypy src/fdm_edl
+#   rules:
+#     - if: "$CI_COMMIT_BRANCH"

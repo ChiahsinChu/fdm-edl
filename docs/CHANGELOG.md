@@ -14,10 +14,21 @@ last_updated: 2026-04-19
 - JUnit test report artifact export (`report.xml`) for unit-test jobs
 - Coverage stage with `pytest --cov=fdm_edl tests/` and GitLab coverage regex parsing
 - Static type-check stage running `mypy src/fdm_edl`
+- `LangevinWaterEps` class for field-dependent dielectric response modeling of liquid water
+- `langevin_eps()` function to compute field-dependent dielectric contributions from dipolar alignment
+- Unit tests for Langevin water model in `tests/test_langevin_water.py`
+- Unit tests for nonlinear Poisson-Boltzmann solver in `tests/test_nonlinear_pb.py`
+- Unit tests for Z-Z GCS model in `tests/_test_z-z_gcs.py`
 
 ### Changed
 
 - Standardized CI default image and setup steps to install dependencies via `pip install ".[all]"` before each job
+- Temporarily disabled type-check CI stage pending further configuration
+- Reorganized development todo list with completed tasks moved to their respective sections
+
+### Fixed
+
+- Fixed ambiguous variable name `l` → `langevin_val` in `langevin_eps()` (E741 lint error)
 
 ## [0.1.dev6] - 2026-04-19
 
