@@ -21,7 +21,7 @@ last_updated: 2026-04-19
 
 ### Charge models
 
-- [ ] Add solvent response (Booth)
+- [x] Add solvent response (Booth)
 - [ ] Bikerman model with mixed cation/anion types
 - [x] Add solvent response (Langevin)
 - [x] Bikerman model with single cation/anion types

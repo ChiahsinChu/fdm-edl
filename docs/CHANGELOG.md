@@ -6,6 +6,19 @@ last_updated: 2026-04-19
 
 # CHANGELOG
 
+## [0.1.dev9] - 2026-04-19
+
+### Added
+
+- `booth_eps()` function for field-dependent dielectric response using Booth's saturation model
+- `BoothWaterEps` class for field-dependent water permittivity based on Booth theory
+- Reusable `WaterEpsTester` test mixin and dedicated Booth-model test coverage in `tests/test_langevin_water.py`
+
+### Changed
+
+- Refactored `langevin_eps()` with shared precomputed coefficients for clearer and more efficient evaluation
+- Reorganized Langevin dielectric tests to share validation logic across multiple water permittivity models
+
 ## [0.1.dev8] - 2026-04-19
 
 ### Added

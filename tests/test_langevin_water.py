@@ -6,18 +6,10 @@ import quaxed.numpy as qjnp
 import unxt
 from jax import numpy as jnp
 
-from fdm_edl.utils.langevin import LangevinWaterEps
+from fdm_edl.utils.langevin import BoothWaterEps, LangevinWaterEps
 
 
-class TestLangevinWaterEps(unittest.TestCase):
-    def setUp(self) -> None:
-        self.temperature = unxt.Quantity(300, "K")
-
-        self.eps_obj = LangevinWaterEps(self.temperature)
-        self._efields = jnp.logspace(-10, 10, 10)
-        self.efields = unxt.Quantity(self._efields, "V/angstrom")
-        self.eps = self.eps_obj(self.efields)
-
+class WaterEpsTester:
     def test_zero_limit(self) -> None:
         # Check eps converge to the zero-field value in the limit of zero field.
         self.assertTrue(jnp.isclose(self.eps[0], self.eps_obj.eps_static))
@@ -66,3 +58,25 @@ class TestLangevinWaterEps(unittest.TestCase):
                 jax.vmap(jax.grad(self.eps_obj))(self.efields).value,
             )
         )
+
+
+class TestLangevinWaterEps(unittest.TestCase, WaterEpsTester):
+    def setUp(self) -> None:
+        temperature = unxt.Quantity(300, "K")
+
+        self.eps_obj = LangevinWaterEps(temperature)
+
+        self._efields = jnp.logspace(-10, 10, 10)
+        self.efields = unxt.Quantity(self._efields, "V/angstrom")
+        self.eps = self.eps_obj(self.efields)
+
+
+class TestBoothWaterEps(unittest.TestCase, WaterEpsTester):
+    def setUp(self) -> None:
+        temperature = unxt.Quantity(300, "K")
+
+        self.eps_obj = BoothWaterEps(temperature)
+
+        self._efields = jnp.logspace(-10, 10, 10)
+        self.efields = unxt.Quantity(self._efields, "V/angstrom")
+        self.eps = self.eps_obj(self.efields)

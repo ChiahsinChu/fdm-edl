@@ -58,21 +58,63 @@ def langevin_eps(
 
     kB = constants.BOLTZMANN_CONSTANT.to("eV/K").value
     eps0 = constants.VACUUM_PERMITTIVITY.to(cds.e / unxt.unit("V * angstrom")).value
+    coeff_in = mu / (kB * temperature)
+    coeff_out = (mu * n_density) / eps0
 
     def _func(E):
-        x = mu * E / (kB * temperature)
-        langevin_val = langevin_function(x)
-        r = (mu * n_density) / (eps0 * E)  # singular at E=0, must not be traced there
-        return r * langevin_val
+        return coeff_out / E * langevin_function(coeff_in * E)
 
     def small_field(_):
         # constant in E => grad wrt E is exactly 0
-        return (mu**2 * n_density) / (3 * kB * temperature * eps0)
+        return coeff_in * coeff_out / 3
 
     def large_field(_):
         return _func(efield)
 
     return jax.lax.cond(efield > 1e-3, large_field, small_field, operand=None)
+
+
+def booth_eps(
+    efield: jax.Array,
+    temperature: float,
+    eps_0: float,
+    eps_opt: float,
+    booth_beta: float,
+) -> jax.Array:
+    """Compute the field-dependent dielectric contribution from dipolar alignment.
+
+    Parameters
+    ----------
+    efield : jax.Array
+        Electric field magnitude in V/angstrom.
+    temperature : float
+        Temperature in K.
+    eps_0 : float
+        Static dielectric constant.
+    eps_opt : float
+        Optical dielectric constant.
+    booth_beta : float
+        Booth saturation parameter (1.41e-8 m/V for water at room temperature).
+
+    Returns
+    -------
+    jax.Array
+        Dimensionless dielectric contribution.
+    """
+    coeff_in = 3 * (eps_0 - eps_opt) / booth_beta
+    coeff_out = booth_beta
+
+    def _func(E):
+        return coeff_out / E * langevin_function(coeff_in * E)
+
+    def small_field(_):
+        # constant in E => grad wrt E is exactly 0
+        return coeff_in * coeff_out / 3
+
+    def large_field(_):
+        return _func(efield)
+
+    return jax.lax.cond(efield > 1e-2, large_field, small_field, operand=None)
 
 
 class LangevinWaterEps:
@@ -153,3 +195,67 @@ class LangevinWaterEps:
                 * constants.VACUUM_PERMITTIVITY
             )
         ).to("").value + self.eps_opt
+
+
+class BoothWaterEps:
+    """Field-dependent dielectric response model for liquid water based on Booth's theory.
+
+    Parameters
+    ----------
+    temperature : unxt.Quantity
+        Absolute temperature of the water phase.
+    """
+
+    def __init__(self, temperature: unxt.Quantity):
+        self.temperature = temperature
+
+        # optical dielectric constant of water at room temperature
+        self.eps_opt = 1.78
+
+        # static dielectric constant of water at room temperature
+        self.eps_static = 78.4
+
+        # Booth saturation parameter for water at room temperature in m/V, converted to angstrom/V
+        self.booth_beta = unxt.Quantity(1.41e-8, "m/V").to("angstrom/V").value
+
+    def __call__(self, efield: unxt.Quantity) -> jax.Array:
+        """Evaluate the total relative permittivity for a physical electric field.
+
+        Parameters
+        ----------
+        efield : unxt.Quantity
+            Electric field in units convertible to V/angstrom.
+
+        Returns
+        -------
+        jax.Array
+            Relative permittivity including the optical contribution.
+        """
+
+        x = efield.to("V/angstrom").value
+        return self.compute(x) + self.eps_opt
+
+    def compute(self, efield: jax.Array) -> jax.Array:
+        """Evaluate the orientational dielectric contribution for raw field values.
+
+        Parameters
+        ----------
+        efield : jax.Array
+            Electric field in V/angstrom.
+
+        Returns
+        -------
+        jax.Array
+            Field-dependent orientational dielectric contribution.
+        """
+
+        _efield = efield[None] if (efield.ndim == 0) else efield
+
+        out = jax.vmap(booth_eps, in_axes=(0, None, None, None, None))(
+            _efield,
+            self.temperature.value,
+            self.eps_static,
+            self.eps_opt,
+            self.booth_beta,
+        )
+        return out.squeeze()
