@@ -11,6 +11,7 @@ from astropy.units import cds  # type: ignore[import-untyped]
 if TYPE_CHECKING:
     from typing import Dict
 
+from ..models.solvent.base import BaseSolvent
 from ..utils import constants
 from ..utils import unit_conversion as uc
 
@@ -76,48 +77,6 @@ class Ion:
 
 
 @dataclass(frozen=True)
-class Solvent:
-    """Solvent properties used for dielectric response.
-
-    Parameters
-    ----------
-    name : str
-        Human-readable solvent name (for example, ``"water"``).
-    eps_0 : float, optional
-        Static relative permittivity (low-frequency dielectric constant).
-        Defaults to ``78.5``.
-    eps_opt : float, optional
-        Optical/high-frequency relative permittivity. Defaults to ``1.77``.
-
-    Notes
-    -----
-    Internal attributes ``_eps_0`` and ``_eps_opt`` store absolute
-    permittivities converted to the metal unit system.
-    """
-
-    name: str
-    eps_0: float = 78.5
-    eps_opt: float = 1.77
-    _eps_0: float = field(init=False, repr=False)
-    _eps_opt: float = field(init=False, repr=False)
-
-    def __post_init__(self):
-        coeff = constants.VACUUM_PERMITTIVITY.to(
-            uc.UNIT_SYSTEMS["metal"]["permittivity"]
-        ).value
-        object.__setattr__(
-            self,
-            "_eps_0",
-            self.eps_0 * coeff,
-        )
-        object.__setattr__(
-            self,
-            "_eps_opt",
-            self.eps_opt * coeff,
-        )
-
-
-@dataclass(frozen=True)
 class Electrolyte:
     """Electrolyte solution model used by the EDL solver.
 
@@ -134,7 +93,7 @@ class Electrolyte:
     """
 
     ions: Dict[str, Ion]
-    solvent: Solvent
+    solvent: BaseSolvent
     temperature: unxt.Quantity
     # epsilon: unxt.Quantity
     # epsilon_r: float = 78.5

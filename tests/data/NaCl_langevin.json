@@ -4,17 +4,18 @@
   "electrode": {},
   "electrolyte": {
     "solvent": {
-      "type": "uniform",
-      "epsilon_r": 78.5
+      "type": "langevin",
+      "epsilon_r_inf": 1.78,
+      "mu": 0.6
     },
     "ions": {
-      "Ca": {
+      "Na": {
         "molar_conc": 0.01,
-        "charge": 2.0
+        "charge": 1.0
       },
-      "SO4": {
+      "Cl": {
         "molar_conc": 0.01,
-        "charge": -2.0
+        "charge": -1.0
       }
     }
   },

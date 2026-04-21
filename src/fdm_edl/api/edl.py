@@ -14,14 +14,15 @@ if TYPE_CHECKING:
 
 from ..models import ChargeModel, create_charge_model
 from ..models.base import charge_density_profile
+from ..models.solvent import BaseSolvent
 from ..solver.base import BaseSolver, RootSolveResult
+from ..solver.grad.base import BaseGradientOP
 from ..utils import constants, load_dict
 from ..utils import unit_conversion as uc
 from ..utils.bc import BoundaryCondition
-from ..utils.grad import GradLaplacian1D
 from ..utils.output_def import EDLStatus
 from .electrode import Electrode
-from .electrolyte import Electrolyte, Ion, Solvent
+from .electrolyte import Electrolyte, Ion
 
 
 class ElectricalDoubleLayer:
@@ -166,7 +167,7 @@ class ElectricalDoubleLayer:
                 )
                 for name, data in _params.get("ions", {}).items()
             },
-            "solvent": Solvent(**_params.get("solvent", {"name": "water"})),
+            "solvent": BaseSolvent(edl_obj=self, **_params.get("solvent", {})),
             "temperature": self.temperature,
         }
 
@@ -199,7 +200,7 @@ class ElectricalDoubleLayer:
         self,
         coordinates: unxt.Quantity,
         boundary_conditions: Sequence[BoundaryCondition],
-        grad_op: GradLaplacian1D | None = None,
+        grad_op: BaseGradientOP | None = None,
         phi0: unxt.Quantity | None = None,
     ):
         """
@@ -213,9 +214,9 @@ class ElectricalDoubleLayer:
         boundary_conditions : list of BoundaryCondition
             A list of :class:`~fdm_edl.bc.BoundaryCondition` objects that
             define the constraints on specific nodes.
-        grad_op : GradLaplacian1D or None, optional
+        grad_op : BaseGradientOP or None, optional
             Pre-built gradient operator.  When ``None`` (default), a
-            :class:`~fdm_edl.utils.grad.GradLaplacian1D` is
+            :class:`~fdm_edl.utils.grad.BaseGradientOP` is
             constructed automatically for 1-D problems.
         phi0 : unxt.Quantity or None, optional
             Initial guess for the potential at all grid nodes, shape
@@ -255,11 +256,11 @@ class ElectricalDoubleLayer:
         if grad_op is None:
             if self.dim == 1:
                 # For 1-D, use the flat coordinate vector
-                grad_op = GradLaplacian1D()
+                grad_op = BaseGradientOP()
             else:
                 raise NotImplementedError(
                     f"Numerical gradient operator for dim={self.dim} is not yet implemented. "
-                    "Pass a GradLaplacian1D explicitly."
+                    "Pass a BaseGradientOP explicitly."
                 )
         grad_fn = jax.jit(grad_op)
 
@@ -335,7 +336,7 @@ class ElectricalDoubleLayer:
         phi: jax.Array,
         boundary_conditions: Sequence[BoundaryCondition],
         coordinates: jax.Array,
-        grad_op: GradLaplacian1D,
+        grad_op: BaseGradientOP,
     ):
         """
         Compute the Poisson-Boltzmann residual at all grid nodes.
@@ -349,7 +350,7 @@ class ElectricalDoubleLayer:
         ----------
         phi : jax.Array, shape (n_grid,)
             Electrostatic potential at every grid node.
-        grad_op : GradLaplacian1D
+        grad_op : BaseGradientOP
             Discrete gradient operator built for this grid.
         boundary_conditions : sequence of BoundaryCondition
             Boundary conditions to enforce.
@@ -363,8 +364,9 @@ class ElectricalDoubleLayer:
             Poisson-Boltzmann equation and all BCs are satisfied.
         """
 
-        # --- Laplacian -------------------------------------------------------
+        # --- Gradient of D-field -------------------------------------------------------
         grad, lap = grad_op(coordinates, phi, h=coordinates[1] - coordinates[0])
+        grad_dfield = lap * self.electrolyte.solvent._eps_0
 
         # --- Ionic charge density (delegated to charge model) ----------------
         rho_ion = self.charge_model.charge_density(
@@ -372,8 +374,8 @@ class ElectricalDoubleLayer:
         )
 
         # --- Physics residual at all nodes -----------------------------------
-        # residual: V/Angstrom^2
-        residual = lap + rho_ion / self.electrolyte.solvent._eps_0
+        # residual: e/Angstrom^3
+        residual = -grad_dfield + rho_ion
 
         # --- Apply boundary conditions -----------
         for bc in boundary_conditions:

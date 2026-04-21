@@ -1,7 +1,7 @@
 ---
 status: draft
 author: Jia-Xin Zhu, AI Agent
-last_updated: 2026-04-19
+last_updated: 2026-04-21
 ---
 
 # Development Plans
@@ -12,7 +12,7 @@ last_updated: 2026-04-19
 
 - [x] `ElectricalDoubleLayer` base class with `compute()` and `plot()` methods (task.000)
 - [x] SI-unit multi-ion Poisson-Boltzmann solver
-- [x] Solvent model (`solvent` object with `eps_0` and `eps_opt`) for dielectric properties
+- [x] Solvent model framework (`BaseSolvent`) with pluggable dielectric response types
 - [x] Load parameters from `dict`, JSON, or YAML file
 - [x] Electroneutrality check on electrolyte input
 - [x] Compute analytical properties (e.g., Debye length) without solving the full PDE
@@ -22,6 +22,7 @@ last_updated: 2026-04-19
 ### Charge models
 
 - [x] Add solvent response (Booth)
+- [x] Refactor solvent dielectric models into `models.solvent` package with registry dispatch
 - [ ] Bikerman model with mixed cation/anion types
 - [x] Add solvent response (Langevin)
 - [x] Bikerman model with single cation/anion types

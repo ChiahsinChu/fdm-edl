@@ -1,10 +1,31 @@
 ---
 status: draft
 author: Jia-Xin Zhu, AI Agent
-last_updated: 2026-04-19
+last_updated: 2026-04-21
 ---
 
 # CHANGELOG
+
+## [0.1.dev10] - 2026-04-21
+
+### Added
+
+- New solvent-model package `fdm_edl.models.solvent` with a registry-based `BaseSolvent` interface and default `UniformDielectrics` implementation
+- Field-dependent solvent classes `LangevinDielectrics` and `BoothDielectrics` (with `LangevinWater` and `BoothWater` presets)
+- `tests/data/NaCl_langevin.json` input fixture for Langevin-type solvent configuration
+
+### Changed
+
+- `ElectricalDoubleLayer` now builds electrolyte solvent objects via `BaseSolvent(...)` and accepts solvent configs keyed by `type` (for example, `uniform` or `langevin`)
+- `Electrolyte.solvent` type changed from the legacy API `Solvent` dataclass to `BaseSolvent`
+- PB residual now uses the D-field form (`-grad(eps*grad(phi)) + rho`) using the solvent permittivity scale
+- Gradient-operator typing in `ElectricalDoubleLayer` generalized to `BaseGradientOP`
+- Langevin/Booth utilities and tests migrated from `utils` into `models.solvent` APIs
+- Test data schema updated from `eps_0`/`eps_opt` to model-specific keys such as `type` and `epsilon_r`
+
+### Removed
+
+- Legacy `fdm_edl.utils.langevin` module and legacy inline `Solvent` dataclass in `fdm_edl.api.electrolyte`
 
 ## [0.1.dev9] - 2026-04-19
 
