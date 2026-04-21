@@ -16,7 +16,7 @@ from ..models import ChargeModel, create_charge_model
 from ..models.base import charge_density_profile
 from ..models.solvent import BaseSolvent
 from ..solver.base import BaseSolver, RootSolveResult
-from ..solver.grad.base import BaseGradientOP
+from ..solver.grad import BaseGradientOP, LaplacianOP
 from ..utils import constants, load_dict
 from ..utils import unit_conversion as uc
 from ..utils.bc import BoundaryCondition
@@ -256,7 +256,7 @@ class ElectricalDoubleLayer:
         if grad_op is None:
             if self.dim == 1:
                 # For 1-D, use the flat coordinate vector
-                grad_op = BaseGradientOP()
+                grad_op = LaplacianOP()
             else:
                 raise NotImplementedError(
                     f"Numerical gradient operator for dim={self.dim} is not yet implemented. "
@@ -286,7 +286,8 @@ class ElectricalDoubleLayer:
         #  --- post-process results ------------------------------------------------
         phi_final = self._solver_result.solution
         grad, _ = grad_fn(
-            coordinates_1d, phi_final, h=coordinates_1d[1] - coordinates_1d[0]
+            coordinates_1d,
+            phi_final,
         )
         efield = cast(
             unxt.Quantity,
@@ -365,8 +366,8 @@ class ElectricalDoubleLayer:
         """
 
         # --- Gradient of D-field -------------------------------------------------------
-        grad, lap = grad_op(coordinates, phi, h=coordinates[1] - coordinates[0])
-        grad_dfield = lap * self.electrolyte.solvent._eps_0
+        grad, lap = grad_op(coordinates, phi)
+        grad_dfield = -lap * self.electrolyte.solvent._eps_0
 
         # --- Ionic charge density (delegated to charge model) ----------------
         rho_ion = self.charge_model.charge_density(

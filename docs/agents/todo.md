@@ -21,9 +21,9 @@ last_updated: 2026-04-21
 
 ### Charge models
 
-- [x] Add solvent response (Booth)
-- [x] Refactor solvent dielectric models into `models.solvent` package with registry dispatch
 - [ ] Bikerman model with mixed cation/anion types
+- [x] Refactor solvent dielectric models into `models.solvent` package with registry dispatch
+- [x] Add solvent response (Booth)
 - [x] Add solvent response (Langevin)
 - [x] Bikerman model with single cation/anion types
 
@@ -44,6 +44,14 @@ last_updated: 2026-04-21
 ### Nanotubes
 
 - [ ] OPs for cylindrical coordinates
+
+### Gradient Operators
+
+- [x] Add gradient/Laplacian operator infrastructure in `fdm_edl.solver.grad`
+- [x] Implement [`BaseGradientOP`](src/fdm_edl/solver/grad/base.py:15) for numerical gradient operators with JIT-friendly design
+- [x] Implement [`LaplacianOP`](src/fdm_edl/solver/grad/laplacian.py:15) for numerical Laplacian operators
+- [x] Support for both uniform and nonuniform grids with configurable stencil points
+- [x] Default to [`LaplacianOP`](src/fdm_edl/solver/grad/laplacian.py:15) in [`ElectricalDoubleLayer`](src/fdm_edl/api/edl.py:25)
 
 ## Documentation
 
