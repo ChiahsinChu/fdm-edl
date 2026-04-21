@@ -21,8 +21,8 @@ def langevin_function(x: jax.Array) -> jax.Array:
     Returns
     -------
     jax.Array
-        Value of the Langevin function, using a small-argument expansion near
-        zero for numerical stability.
+        Value of the Langevin function, using a low-order series expansion
+        near zero for numerical stability.
     """
 
     def small(_):
@@ -40,18 +40,18 @@ def langevin_eps(
     mu: float,
     n_density: float,
 ) -> jax.Array:
-    """Compute the field-dependent dielectric contribution from dipolar alignment.
+    """Compute Langevin orientational dielectric contribution.
 
     Parameters
     ----------
     efield : jax.Array
-        Electric field magnitude in V/angstrom.
+        Electric field magnitude in the internal ``metal`` field unit.
     temperature : float
-        Temperature in K.
+        Temperature in Kelvin.
     mu : float
-        Molecular dipole moment in e*angstrom.
+        Molecular dipole moment in internal ``metal`` dipole units.
     n_density : float
-        Number density in 1/angstrom^3.
+        Number density in internal ``metal`` density units.
 
     Returns
     -------
@@ -89,6 +89,18 @@ class LangevinDielectrics(BaseSolvent, types=("langevin",)):
         # molar_mass: float = None,
         **kwargs,
     ):
+        """Initialize the Langevin dielectric model.
+
+        Parameters
+        ----------
+        edl_obj : ElectricalDoubleLayer
+            EDL object providing temperature and unit system.
+        epsilon_r_inf : float, default=1.78
+            Optical/high-frequency relative permittivity.
+        mu : float | None, default=None
+            Molecular dipole moment. If ``None``, a water-like default of
+            ``3.0 debye`` is used.
+        """
         self._epsilon_r_inf = epsilon_r_inf
 
         self.temperature = edl_obj.temperature
@@ -130,17 +142,17 @@ class LangevinDielectrics(BaseSolvent, types=("langevin",)):
         return self._epsilon_r_inf
 
     def _compute_eps(self, efield: jax.Array) -> jax.Array:
-        """Evaluate the orientational dielectric contribution for raw field values.
+        """Evaluate Langevin dielectric response for raw internal-unit fields.
 
         Parameters
         ----------
         efield : jax.Array
-            Electric field in V/angstrom.
+            Electric field magnitude in internal ``metal`` units.
 
         Returns
         -------
         jax.Array
-            Field-dependent orientational dielectric contribution.
+            Relative permittivity including ``eps_inf``.
         """
 
         _efield = efield[None] if (efield.ndim == 0) else efield
@@ -155,7 +167,7 @@ class LangevinDielectrics(BaseSolvent, types=("langevin",)):
 
 
 class LangevinWater(LangevinDielectrics):
-    """Field-dependent dielectric response model for liquid water based on Langevin dipole alignment."""
+    """Preconfigured Langevin model for liquid water-like response."""
 
     def __init__(self, edl_obj: ElectricalDoubleLayer):
         super().__init__(

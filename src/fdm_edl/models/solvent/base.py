@@ -15,7 +15,11 @@ _EPS_0 = constants.VACUUM_PERMITTIVITY.to(
 
 
 class BaseSolvent(ABC):
-    """Abstract base class for solvent models used in the electrolyte."""
+    """Abstract base class for solvent dielectric response models.
+
+    Subclasses provide the relative permittivity :math:`\epsilon_r(E)` for a
+    given electric-field magnitude.
+    """
 
     _registry: ClassVar[dict[str, type["BaseSolvent"]]] = {}
 
@@ -39,34 +43,36 @@ class BaseSolvent(ABC):
             BaseSolvent._registry[type.lower()] = cls
 
     def compute_eps(self, efield: unxt.Quantity) -> jax.Array:
-        """Compute the field-dependent relative permittivity for a given electric field.
+        """Compute relative permittivity from a unit-bearing electric field.
 
         Parameters
         ----------
-        efield : jax.Array
-            Electric field in V/angstrom.
+        efield : unxt.Quantity
+            Electric field quantity. Values are converted to the internal
+            ``metal`` unit system before evaluation.
 
         Returns
         -------
         jax.Array
-            Field-dependent relative permittivity.
+            Relative permittivity ``epsilon_r`` (dimensionless).
         """
         x = efield.to(uc.UNIT_SYSTEMS["metal"]["electrical field strength"])
         return self._compute_eps(x.value)
 
     @abstractmethod
     def _compute_eps(self, efield: jax.Array) -> jax.Array:
-        """Compute the field-dependent relative permittivity for a given electric field.
+        """Compute relative permittivity from raw internal-unit field values.
 
         Parameters
         ----------
         efield : jax.Array
-            Electric field in V/angstrom.
+            Electric field magnitude in the internal ``metal`` unit system
+            (numerical array, unitless at this stage).
 
         Returns
         -------
         jax.Array
-            Field-dependent relative permittivity.
+            Relative permittivity ``epsilon_r`` (dimensionless).
         """
         ...
 
@@ -98,6 +104,13 @@ class UniformDielectrics(BaseSolvent, types=("uniform",)):
     """Constant dielectric response model with a fixed relative permittivity."""
 
     def __init__(self, epsilon_r: float = 78.5, **kwargs):
+        """Initialize a uniform-dielectric model.
+
+        Parameters
+        ----------
+        epsilon_r : float, default=78.5
+            Constant relative permittivity applied for all field values.
+        """
         self.epsilon_r = epsilon_r
 
     @property

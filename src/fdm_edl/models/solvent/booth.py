@@ -15,18 +15,18 @@ def booth_eps(
     eps_opt: float,
     booth_beta: float,
 ) -> jax.Array:
-    """Compute the field-dependent dielectric contribution from dipolar alignment.
+    """Compute Booth orientational dielectric contribution.
 
     Parameters
     ----------
     efield : jax.Array
-        Electric field magnitude in V/angstrom.
+        Electric field magnitude in the internal ``metal`` field unit.
     eps_0 : float
-        Static dielectric constant.
+        Static relative permittivity.
     eps_opt : float
-        Optical dielectric constant.
+        Optical/high-frequency relative permittivity.
     booth_beta : float
-        Booth saturation parameter (1.41e-8 m/V for water at room temperature).
+        Booth saturation parameter in inverse field units.
 
     Returns
     -------
@@ -60,6 +60,19 @@ class BoothDielectrics(BaseSolvent, types=("langevin",)):
         booth_beta: float = None,
         **kwargs,
     ):
+        """Initialize the Booth dielectric model.
+
+        Parameters
+        ----------
+        edl_obj : ElectricalDoubleLayer
+            EDL object used to interpret user-supplied units.
+        epsilon_r_0 : float, default=78.4
+            Static relative permittivity.
+        epsilon_r_inf : float, default=1.78
+            Optical/high-frequency relative permittivity.
+        booth_beta : float | None, default=None
+            Booth saturation parameter. If ``None``, uses ``1.41e-8 m/V``.
+        """
         self._epsilon_r_0 = epsilon_r_0
         self._epsilon_r_inf = epsilon_r_inf
 
@@ -90,17 +103,17 @@ class BoothDielectrics(BaseSolvent, types=("langevin",)):
         return self._epsilon_r_inf
 
     def _compute_eps(self, efield: jax.Array) -> jax.Array:
-        """Evaluate the orientational dielectric contribution for raw field values.
+        """Evaluate Booth dielectric response for raw internal-unit fields.
 
         Parameters
         ----------
         efield : jax.Array
-            Electric field in V/angstrom.
+            Electric field magnitude in internal ``metal`` units.
 
         Returns
         -------
         jax.Array
-            Field-dependent orientational dielectric contribution.
+            Relative permittivity including ``eps_inf``.
         """
 
         _efield = efield[None] if (efield.ndim == 0) else efield
@@ -115,7 +128,7 @@ class BoothDielectrics(BaseSolvent, types=("langevin",)):
 
 
 class BoothWater(BoothDielectrics):
-    """Field-dependent dielectric response model for liquid water based on Langevin dipole alignment."""
+    """Preconfigured Booth model for liquid water at room conditions."""
 
     def __init__(self, edl_obj: ElectricalDoubleLayer):
         super().__init__(
