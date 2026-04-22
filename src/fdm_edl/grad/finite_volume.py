@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 
 import jax
@@ -55,7 +54,7 @@ def _interpolate_faces_to_cells(G_face: Array) -> Array:
 
 @jax.tree_util.register_pytree_node_class
 @dataclass(frozen=True)
-class ConservativeFluxGradOP(BaseGradientOP):
+class FiniteVolumeOP(BaseGradientOP):
     """
     Conservative finite-volume gradient operator for sampled data ``y ≈ f(x)``.
 
@@ -96,12 +95,12 @@ class ConservativeFluxGradOP(BaseGradientOP):
     Default (constant permittivity)::
 
         import jax.numpy as jnp
-        from fdm_edl.solver.grad import ConservativeFluxGradOP
+        from fdm_edl.solver.grad import FiniteVolumeOP
 
         x = jnp.linspace(0.0, 1.0, 256)
         phi = jnp.sin(2 * jnp.pi * x)
 
-        op = ConservativeFluxGradOP()
+        op = FiniteVolumeOP()
         grad, div_D = op(x, phi)
 
     Nonlinear permittivity::
@@ -109,42 +108,13 @@ class ConservativeFluxGradOP(BaseGradientOP):
         def my_eps(E):
             return 1.0 + 0.5 * (E / 1.0) ** 2
 
-        op = ConservativeFluxGradOP(eps_func=my_eps)
+        op = FiniteVolumeOP(eps_func=my_eps)
         grad, div_D = jax.jit(op)(x, phi)
     """
 
-    eps_func: Callable[[Array], Array] = _unit_eps
+    # eps_func: Callable[[Array], Array] = _unit_eps
 
-    # --- public API ---
-    def __call__(self, x: Array, y: Array) -> tuple[Array, Array]:
-        """
-        Compute cell-centred gradient and divergence of the displacement field.
-
-        Parameters
-        ----------
-        x : Array, shape (N,)
-            Grid locations (cell centres). Need not be sorted — they are
-            sorted internally before computation.
-        y : Array, shape (N,)
-            Field values at cell centres, ``y ≈ f(x)``.
-
-        Returns
-        -------
-        G_cell : Array, shape (N,)
-            First derivative ``dy/dx`` averaged to cell centres.
-        div_dfield : Array, shape (N,)
-            Divergence of displacement field ``∇·(ε E) = ∇·(ε (−∇y))``.
-            Boundary rows replicate the nearest interior value.
-        """
-        grad, _ = super().__call__(x, y)
-
-        sorted_idx = jnp.argsort(x)
-        _x = x[sorted_idx]
-        _y = y[sorted_idx]
-        div_dfield = self._div_dfield(_x, _y)
-        return (grad, div_dfield)
-
-    def _div_dfield(self, x: Array, y: Array) -> Array:
+    def _div_D(self, x: Array, y: Array, grad: Array) -> Array:
         """
         Compute divergence of the displacement field ``∇·(ε E)`` only.
 
@@ -161,13 +131,13 @@ class ConservativeFluxGradOP(BaseGradientOP):
             ``∇·(ε (−∇y))`` at cell centres.
             Boundary rows replicate the nearest interior value.
         """
-        # _, div = _conservative_flux(x, y, self.eps_func)
         xf = _faces_from_centers(x)  # (N+1,)
         dx_cell = xf[1:] - xf[:-1]  # (N,)   Δx_i
         dx_face = x[1:] - x[:-1]  # (N-1,) δx_{i+1/2}
 
         # Face-centred positive gradient and electric field
         grad_face = (y[1:] - y[:-1]) / dx_face  # (N-1,)  dy/dx at faces
+        # grad_face = grad
 
         # Displacement flux D = ε(|E|)·E at faces
         dfield_face = -self.eps_func(jnp.abs(grad_face)) * grad_face  # (N-1,)

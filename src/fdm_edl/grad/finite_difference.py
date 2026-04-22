@@ -4,8 +4,8 @@ from dataclasses import dataclass
 import jax
 import jax.numpy as jnp
 
-from ...utils import constants
-from ...utils import unit_conversion as uc
+from ..utils import constants
+from ..utils import unit_conversion as uc
 from .base import BaseGradientOP, _nonuniform_derivative
 
 Array = jax.Array
@@ -13,16 +13,19 @@ Array = jax.Array
 
 @jax.tree_util.register_pytree_node_class
 @dataclass(frozen=True)
-class LaplacianOP(BaseGradientOP):
+class FiniteDifferenceOP(BaseGradientOP):
     """
-    Numerical 1D Laplacian operator for sampled data ``y ≈ f(x)``.
+        Finite-difference 1-D gradient and displacement-divergence operator.
 
-    The operator computes the second derivative ``d²y/dx²`` (the 1D Laplacian) from samples on a grid ``x``.
+        The operator returns the first derivative ``dy/dx`` together with
+        ``-ε d²y/dx²`` evaluated from samples on a grid ``x``. When ``eps_func`` is
+        provided, the permittivity is evaluated from ``|dy/dx|`` before forming the
+        second output.
 
     This class is designed to be JIT-friendly in JAX:
     - The instance contains only small Python scalars (no arrays).
     - The instance is registered as a PyTree with *static* auxiliary data, so you can do
-      ``op_jit = jax.jit(op)`` and call it as ``op_jit(x, y, h=...)``.
+            ``op_jit = jax.jit(op)`` and call it as ``op_jit(x, y)``.
 
     Parameters
     ----------
@@ -64,24 +67,22 @@ class LaplacianOP(BaseGradientOP):
 
         import jax
         import jax.numpy as jnp
-        from fdm_edl.utils.grad import GradLaplacian1D
+        from fdm_edl.solver.grad import FiniteDifferenceOP
 
         x = jnp.linspace(0.0, 1.0, 1024)
         y = jnp.sin(2 * jnp.pi * x)
 
-        op = GradLaplacian1D(uniform=True, boundary_points=5, interior_points=5)
+        op = FiniteDifferenceOP(uniform=True, boundary_points=5, interior_points=5)
         op_jit = jax.jit(op)
-
-        h = x[1] - x[0]
-        grad, lap = op_jit(x, y, h=h)
+        grad, div_D = op_jit(x, y)
 
     Nonuniform grid::
 
         x = jnp.sort(jax.random.uniform(jax.random.key(0), (1024,)))
         y = jnp.sin(2 * jnp.pi * x)
 
-        op = GradLaplacian1D(uniform=False, boundary_points=5, interior_points=5)
-        grad, lap = jax.jit(op)(x, y)
+        op = FiniteDifferenceOP(uniform=False, boundary_points=5, interior_points=5)
+        grad, div_D = jax.jit(op)(x, y)
     """
 
     def _div_D(self, x: Array, y: Array, grad: Array) -> Array:

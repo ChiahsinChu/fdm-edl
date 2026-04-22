@@ -10,21 +10,23 @@ last_updated: 2026-04-22
 
 ### Added
 
-- New `ConservativeFluxGradOP` in `src/fdm_edl/solver/grad/conservative_flux.py` for conservative finite-volume evaluation of `div(eps * E)` on 1D grids
-- Exported `ConservativeFluxGradOP` from `src/fdm_edl/solver/grad/__init__.py`
+- New `FiniteVolumeOP` in `src/fdm_edl/grad/finite_volume.py` for conservative finite-volume evaluation of `div(eps * E)` on 1D grids
+- Exported gradient operators and a `create_gradient_op()` factory from `src/fdm_edl/grad/__init__.py`
 
 ### Changed
 
-- `ElectricalDoubleLayer` now selects gradient operators by solvent type in 1D: `LaplacianOP` for `uniform`, `ConservativeFluxGradOP` for `langevin`/`booth`
-- PB residual in `ElectricalDoubleLayer._loss()` is now expressed consistently as `div_D - rho_ion`, with boundary-condition updates using the returned `grad(phi)` field
+- `ElectricalDoubleLayer` now selects gradient operators by solvent type in 1D: `FiniteDifferenceOP` for `uniform`, `FiniteVolumeOP` for `langevin`/`booth`
+- Gradient operator modules were moved from `fdm_edl.solver.grad` to `fdm_edl.grad`
+- PB residual in `ElectricalDoubleLayer.compute_residual()` is now expressed consistently as `div_D - rho_ion`, with boundary-condition updates using the returned `grad(phi)` field
 - `BaseGradientOP` now carries an `eps_func` callback and returns `(grad_phi, div_D)` from its public call interface
-- `LaplacianOP` now computes `div_D` via dielectric-aware scaling of the Laplacian using `eps_func`
+- `FiniteDifferenceOP` now computes `div_D` via dielectric-aware scaling of the Laplacian using `eps_func`
 - Solvent subclasses now declare canonical registry keys via class attribute `type` (for example: `uniform`, `langevin`, `booth`)
 - `BoothDielectrics` type registration corrected to `booth` and its `ElectricalDoubleLayer` import moved under `TYPE_CHECKING`
 
 ### Fixed
 
 - Updated `tests/test_grad.py` to validate `div_D` outputs against autodiff Laplacian with dielectric scaling, matching the new gradient-operator API
+- Added `tests/test_water_eps.py` and `tests/data/NaCl_booth.json` for nonlinear dielectric test coverage and input fixtures
 
 ## [0.1.dev11] - 2026-04-21
 
@@ -32,13 +34,13 @@ last_updated: 2026-04-22
 
 - New `fdm_edl.solver.grad` package with gradient/Laplacian operator infrastructure
 - [`BaseGradientOP`](src/fdm_edl/solver/grad/base.py:15) class for numerical gradient operators with JIT-friendly design
-- [`LaplacianOP`](src/fdm_edl/solver/grad/laplacian.py:15) class for numerical Laplacian (second derivative) operators
+- [`FiniteDifferenceOP`](src/fdm_edl/solver/grad/laplacian.py:15) class for numerical Laplacian (second derivative) operators
 - Support for both uniform and nonuniform grids with configurable boundary/interior stencil points
 - Export of gradient operators in [`fdm_edl.solver.grad`](src/fdm_edl/solver/grad/__init__.py:1)
 
 ### Changed
 
-- [`ElectricalDoubleLayer`](src/fdm_edl/api/edl.py:25) now uses [`LaplacianOP`](src/fdm_edl/solver/grad/laplacian.py:15) as the default gradient operator for 1D cases
+- [`ElectricalDoubleLayer`](src/fdm_edl/api/edl.py:25) now uses [`FiniteDifferenceOP`](src/fdm_edl/solver/grad/laplacian.py:15) as the default gradient operator for 1D cases
 - Removed explicit `h` parameter from gradient operator calls in [`ElectricalDoubleLayer.compute()`](src/fdm_edl/api/edl.py:289)
 - Fixed sign in D-field gradient calculation: `grad_dfield = -lap * self.electrolyte.solvent._eps_0`
 

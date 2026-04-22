@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import jax
 import jax.numpy as jnp
 
-from ...models.solvent.base import UniformDielectrics
+from ..models.solvent.base import UniformDielectrics
 
 Array = jax.Array
 
@@ -14,14 +14,17 @@ Array = jax.Array
 @dataclass(frozen=True)
 class BaseGradientOP:
     """
-    Numerical 1D gradient operator for sampled data ``y ≈ f(x)``.
+        Base class for 1-D gradient operators on sampled data ``y ≈ f(x)``.
 
-    The operator computes the first derivative ``dy/dx`` from samples on a grid ``x``.
+        The operator computes the first derivative ``dy/dx`` from samples on a grid
+        ``x`` and delegates the second returned quantity to ``_div_D``. Concrete
+        subclasses define that second term, for example a finite-difference
+        approximation to ``-∇·(ε∇y)`` or a finite-volume displacement divergence.
 
     This class is designed to be JIT-friendly in JAX:
     - The instance contains only small Python scalars (no arrays).
     - The instance is registered as a PyTree with *static* auxiliary data, so you can do
-      ``op_jit = jax.jit(op)`` and call it as ``op_jit(x, y, h=...)``.
+            ``op_jit = jax.jit(op)`` and call it as ``op_jit(x, y)``.
 
     Parameters
     ----------
@@ -59,28 +62,26 @@ class BaseGradientOP:
 
     Examples
     --------
-    Uniform grid, 5-point interior and boundary stencils::
+    Finite-difference operator on a uniform grid::
 
         import jax
         import jax.numpy as jnp
-        from fdm_edl.utils.grad import GradLaplacian1D
+        from fdm_edl.solver.grad import FiniteDifferenceOP
 
         x = jnp.linspace(0.0, 1.0, 1024)
         y = jnp.sin(2 * jnp.pi * x)
 
-        op = GradLaplacian1D(uniform=True, boundary_points=5, interior_points=5)
+        op = FiniteDifferenceOP(uniform=True, boundary_points=5, interior_points=5)
         op_jit = jax.jit(op)
+        grad, div_D = op_jit(x, y)
 
-        h = x[1] - x[0]
-        grad, lap = op_jit(x, y, h=h)
-
-    Nonuniform grid::
+    Nonuniform grid with the same operator::
 
         x = jnp.sort(jax.random.uniform(jax.random.key(0), (1024,)))
         y = jnp.sin(2 * jnp.pi * x)
 
-        op = GradLaplacian1D(uniform=False, boundary_points=5, interior_points=5)
-        grad, lap = jax.jit(op)(x, y)
+        op = FiniteDifferenceOP(uniform=False, boundary_points=5, interior_points=5)
+        grad, div_D = jax.jit(op)(x, y)
     """
 
     uniform: bool = True
@@ -127,7 +128,7 @@ class BaseGradientOP:
     # --- public API ---
     def __call__(self, x: Array, y: Array) -> tuple[Array, Array]:
         """
-        Compute gradient and Laplacian.
+        Compute the gradient and subclass-specific divergence term.
 
         Parameters
         ----------
@@ -140,8 +141,8 @@ class BaseGradientOP:
         -------
         grad : jax.numpy.ndarray
             First derivative approximation with shape ``(n,)``.
-        lap : jax.numpy.ndarray
-            Second derivative approximation with shape ``(n,)``.
+        div_D : jax.numpy.ndarray
+            Subclass-defined divergence-like term with shape ``(n,)``.
         """
         sorted_idx = jnp.argsort(x)
         _x = x[sorted_idx]

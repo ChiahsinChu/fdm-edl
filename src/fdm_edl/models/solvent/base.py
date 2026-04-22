@@ -33,7 +33,6 @@ class BaseSolvent(ABC):
                 raise ValueError(
                     f"Unsupported solvent class '{type}'. Supported classes: {supported}."
                 )
-            # remove 'type' so ConstantEps.__init__ doesn't see it
             kwargs.pop("type", None)
             return solvent_cls(**kwargs)  # construct fully here
         return super().__new__(cls)

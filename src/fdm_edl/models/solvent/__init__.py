@@ -7,5 +7,11 @@ local electric field.
 """
 
 from .base import BaseSolvent
+from .booth import BoothDielectrics
+from .langevin import LangevinDielectrics
 
-__all__ = ["BaseSolvent"]
+__all__ = [
+    "BaseSolvent",
+    "BoothDielectrics",
+    "LangevinDielectrics",
+]

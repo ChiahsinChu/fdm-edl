@@ -134,12 +134,12 @@ class BoothDielectrics(BaseSolvent):
         return out.squeeze() + self.eps_inf
 
 
-class BoothWater(BoothDielectrics):
-    """Preconfigured Booth model for liquid water at room conditions."""
+# class BoothWater(BoothDielectrics):
+#     """Preconfigured Booth model for liquid water at room conditions."""
 
-    def __init__(self, edl_obj: ElectricalDoubleLayer):
-        super().__init__(
-            edl_obj=edl_obj,
-            epsilon_r_inf=1.78,
-            epsilon_r_0=78.4,
-        )
+#     def __init__(self, edl_obj: ElectricalDoubleLayer):
+#         super().__init__(
+#             edl_obj=edl_obj,
+#             epsilon_r_inf=1.78,
+#             epsilon_r_0=78.4,
+#         )

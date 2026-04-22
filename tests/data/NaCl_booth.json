@@ -1,0 +1,29 @@
+{
+  "unit": "metal",
+  "temperature": 298.15,
+  "electrode": {},
+  "electrolyte": {
+    "solvent": {
+      "type": "booth",
+      "epsilon_r_0": 78.4,
+      "epsilon_r_inf": 1.78
+    },
+    "ions": {
+      "Na": {
+        "molar_conc": 0.01,
+        "charge": 1.0
+      },
+      "Cl": {
+        "molar_conc": 0.01,
+        "charge": -1.0
+      }
+    }
+  },
+  "model": {
+    "type": "bikerman"
+  },
+  "solver": {
+    "max_iter": 20,
+    "tol": 1e-6
+  }
+}

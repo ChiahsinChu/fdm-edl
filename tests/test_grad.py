@@ -8,7 +8,7 @@ from jax import numpy as jnp
 
 from fdm_edl.api import ElectricalDoubleLayer
 from fdm_edl.benchmark.pb1d import NonLinearPoissonBoltzmann
-from fdm_edl.solver.grad.laplacian import LaplacianOP
+from fdm_edl.grad.finite_difference import FiniteDifferenceOP
 from fdm_edl.utils import constants
 from fdm_edl.utils import unit_conversion as uc
 
@@ -66,4 +66,4 @@ class TestLaplacianOP(unittest.TestCase, GradientTester):
 
         self.x = unxt.Quantity(jnp.linspace(0, 50.0, 500), unit="angstrom")
         self._func = _func
-        self.grad_op = LaplacianOP()
+        self.grad_op = FiniteDifferenceOP()

@@ -1,10 +1,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import jax
 import unxt
 from astropy.units import cds  # type: ignore[import-untyped]
 from jax import numpy as jnp
 
-from ...api.edl import ElectricalDoubleLayer
+if TYPE_CHECKING:
+    from ...api.edl import ElectricalDoubleLayer
+
 from ...utils import constants
 from ...utils import unit_conversion as uc
 from .base import BaseSolvent
@@ -168,11 +174,11 @@ class LangevinDielectrics(BaseSolvent):
         return out.squeeze() + self.eps_inf
 
 
-class LangevinWater(LangevinDielectrics):
-    """Preconfigured Langevin model for liquid water-like response."""
+# class LangevinWater(LangevinDielectrics):
+#     """Preconfigured Langevin model for liquid water-like response."""
 
-    def __init__(self, edl_obj: ElectricalDoubleLayer):
-        super().__init__(
-            edl_obj=edl_obj,
-            epsilon_r_inf=1.78,
-        )
+#     def __init__(self, edl_obj: ElectricalDoubleLayer):
+#         super().__init__(
+#             edl_obj=edl_obj,
+#             epsilon_r_inf=1.78,
+#         )

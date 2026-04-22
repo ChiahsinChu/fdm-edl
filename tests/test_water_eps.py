@@ -8,8 +8,7 @@ import unxt
 from jax import numpy as jnp
 
 from fdm_edl.api import ElectricalDoubleLayer
-from fdm_edl.models.solvent.booth import BoothWater
-from fdm_edl.models.solvent.langevin import LangevinWater
+from fdm_edl.models.solvent import BoothDielectrics, LangevinDielectrics
 
 
 class WaterEpsTester:
@@ -68,7 +67,7 @@ class TestLangevinWaterEps(unittest.TestCase, WaterEpsTester):
         example_input = Path(__file__).resolve().parent / "data" / "CaSO4.json"
         edl_obj = ElectricalDoubleLayer(example_input)
 
-        self.eps_obj = LangevinWater(edl_obj)
+        self.eps_obj = LangevinDielectrics(edl_obj)
 
         self._efields = jnp.logspace(-10, 10, 10)
         self.efields = unxt.Quantity(self._efields, "V/angstrom")
@@ -80,7 +79,7 @@ class TestBoothWaterEps(unittest.TestCase, WaterEpsTester):
         example_input = Path(__file__).resolve().parent / "data" / "CaSO4.json"
         edl_obj = ElectricalDoubleLayer(example_input)
 
-        self.eps_obj = BoothWater(edl_obj)
+        self.eps_obj = BoothDielectrics(edl_obj)
 
         self._efields = jnp.logspace(-10, 10, 10)
         self.efields = unxt.Quantity(self._efields, "V/angstrom")

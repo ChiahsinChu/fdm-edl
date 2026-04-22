@@ -12,11 +12,16 @@ import unxt
 if TYPE_CHECKING:
     from typing import Sequence
 
+from ..grad import (
+    BaseGradientOP,
+    FiniteDifferenceOP,
+    FiniteVolumeOP,
+    create_gradient_op,
+)
 from ..models import ChargeModel, create_charge_model
 from ..models.base import charge_density_profile
 from ..models.solvent import BaseSolvent
 from ..solver.base import BaseSolver, RootSolveResult
-from ..solver.grad import BaseGradientOP, ConservativeFluxGradOP, LaplacianOP
 from ..utils import constants, load_dict
 from ..utils import unit_conversion as uc
 from ..utils.bc import BoundaryCondition
@@ -106,6 +111,7 @@ class ElectricalDoubleLayer:
         self.set_electrolyte(self._params.get("electrolyte", {}))
         self.set_model(self._params.get("model", {}))
         self.set_solver(self._params.get("solver", {}))
+        self.set_grad_op(self._params.get("grad_op", {}))
 
         # placeholders for results
         self.result: EDLStatus | None = None
@@ -185,6 +191,19 @@ class ElectricalDoubleLayer:
         """
         self.charge_model: ChargeModel = create_charge_model(_params)
 
+    def set_grad_op(self, _params: dict):
+        _type = _params.pop("type", None)
+        if _type is None:
+            grad_op = self._build_default_grad_op()
+        else:
+            grad_op = create_gradient_op(
+                type=_type,
+                eps_func=self.electrolyte.solvent._compute_eps,
+                **_params,
+            )
+            self._validate_user_grad_op(grad_op)
+        self.grad_op = cast(BaseGradientOP, jax.jit(grad_op))
+
     def set_solver(self, _params: dict):
         """
         Set up the nonlinear solver with new parameters.
@@ -200,8 +219,8 @@ class ElectricalDoubleLayer:
         self,
         coordinates: unxt.Quantity,
         boundary_conditions: Sequence[BoundaryCondition],
-        grad_op: BaseGradientOP | None = None,
         phi0: unxt.Quantity | None = None,
+        ignore_convergence_failure: bool = False,
     ):
         """
         Solve for the electrostatic potential profile.
@@ -214,10 +233,6 @@ class ElectricalDoubleLayer:
         boundary_conditions : list of BoundaryCondition
             A list of :class:`~fdm_edl.bc.BoundaryCondition` objects that
             define the constraints on specific nodes.
-        grad_op : BaseGradientOP or None, optional
-            Pre-built gradient operator.  When ``None`` (default), a
-            :class:`~fdm_edl.utils.grad.BaseGradientOP` is
-            constructed automatically for 1-D problems.
         phi0 : unxt.Quantity or None, optional
             Initial guess for the potential at all grid nodes, shape
             ``(n_grid,)``.  When ``None`` (default), a zero array is
@@ -253,25 +268,6 @@ class ElectricalDoubleLayer:
 
         # For 1-D, use the flat coordinate vector
         coordinates_1d = coordinates_2d[:, 0]
-        # --- Build gradient operator if not provided --------------------------------
-        if grad_op is None:
-            if self.dim == 1:
-                # todo: check correspondence between grad_op and dielectric model
-                if self.electrolyte.solvent.type == "uniform":
-                    grad_op = LaplacianOP(
-                        eps_func=self.electrolyte.solvent._compute_eps
-                    )
-                elif self.electrolyte.solvent.type in ("langevin", "booth"):
-                    grad_op = ConservativeFluxGradOP(
-                        eps_func=self.electrolyte.solvent._compute_eps
-                    )
-            else:
-                raise NotImplementedError(
-                    f"Numerical gradient operator for dim={self.dim} is not yet implemented. "
-                    "Pass a BaseGradientOP explicitly."
-                )
-
-        grad_fn = jax.jit(grad_op)
 
         # --- Zero initial guess if not provided ----------------
         if _phi0 is None:
@@ -279,22 +275,22 @@ class ElectricalDoubleLayer:
         _phi0 = jnp.asarray(_phi0)
 
         # --- Solve -----------------------------------------------------------
-        # for bc in boundary_conditions:
-        #     # clamp Dirichlet nodes in the initial guess to improve convergence
-        #     if bc._is_dirichlet:
-        #         phi = bc.clamp_dirichlet(phi)
         self._solver_result = self.solver.solve(
             self.compute_residual,
             _phi0,
             boundary_conditions,
             coordinates_1d,
-            grad_fn,
         )
         assert self._solver_result is not None
+        if (not self._solver_result.converged) and (not ignore_convergence_failure):
+            raise RuntimeError(
+                f"Solver failed to converge after {self._solver_result.n_iter} iterations. "
+                f"Final residual: {jnp.sqrt(jnp.mean(self._solver_result.residual ** 2))}"
+            )
 
         #  --- post-process results ------------------------------------------------
         phi_final = self._solver_result.solution
-        grad, _ = grad_fn(
+        grad, _ = self.grad_op(
             coordinates_1d,
             phi_final,
         )
@@ -346,7 +342,6 @@ class ElectricalDoubleLayer:
         phi: jax.Array,
         boundary_conditions: Sequence[BoundaryCondition],
         coordinates: jax.Array,
-        grad_op: BaseGradientOP,
     ):
         """
         Compute the Poisson-Boltzmann residual at all grid nodes.
@@ -360,8 +355,6 @@ class ElectricalDoubleLayer:
         ----------
         phi : jax.Array, shape (n_grid,)
             Electrostatic potential at every grid node.
-        grad_op : BaseGradientOP
-            Discrete gradient operator built for this grid.
         boundary_conditions : sequence of BoundaryCondition
             Boundary conditions to enforce.
         coordinates : jax.Array, shape (n_grid,) or (n_grid, n_dim)
@@ -375,7 +368,7 @@ class ElectricalDoubleLayer:
         """
 
         # --- Gradient of phi and divergence of electric displacement ---------
-        g_phi, div_D = grad_op(coordinates, phi)
+        g_phi, div_D = self.grad_op(coordinates, phi)
 
         # --- Ionic charge density (delegated to charge model) ----------------
         rho_ion = self.charge_model.charge_density(
@@ -391,3 +384,55 @@ class ElectricalDoubleLayer:
             residual = bc.update_residual(residual, phi, g_phi)
 
         return residual
+
+    def _check_grad_op(self, grad_op: BaseGradientOP | None) -> BaseGradientOP:
+        """
+        Ensure a gradient operator exists and return a jitted callable.
+
+        If `grad_op` is None, we construct one based on (dim, solvent.type).
+        """
+        if grad_op is None:
+            grad_op = self._build_default_grad_op()
+        else:
+            self._validate_user_grad_op(grad_op)
+
+        return jax.jit(grad_op)
+
+    def _validate_user_grad_op(self, grad_op: BaseGradientOP) -> None:
+        solvent_type = self.electrolyte.solvent.type
+
+        # Enforce: for uniform solvent, do not allow FiniteDifferenceOP
+        if solvent_type == "uniform" and isinstance(grad_op, FiniteDifferenceOP):
+            raise ValueError(
+                "Invalid grad_op for solvent type 'uniform': FiniteDifferenceOP is not allowed. "
+                "Use FiniteVolumeOP (or pass a different BaseGradientOP)."
+            )
+
+    def _build_default_grad_op(self) -> BaseGradientOP:
+        """Construct the default gradient operator for the current configuration."""
+        if self.dim != 1:
+            raise NotImplementedError(
+                f"Numerical gradient operator for dim={self.dim} is not yet implemented. "
+                "Pass a BaseGradientOP explicitly."
+            )
+
+        solvent_type = self.electrolyte.solvent.type
+        grad_op_class = self._default_grad_op_class_for_solvent(solvent_type)
+
+        return grad_op_class(eps_func=self.electrolyte.solvent._compute_eps)
+
+    @staticmethod
+    def _default_grad_op_class_for_solvent(solvent_type: str) -> type[BaseGradientOP]:
+        """Map solvent type -> gradient operator class."""
+        mapping: dict[str, type[BaseGradientOP]] = {
+            "uniform": FiniteDifferenceOP,
+            "langevin": FiniteVolumeOP,
+            "booth": FiniteVolumeOP,
+        }
+        try:
+            return mapping[solvent_type]
+        except KeyError as e:
+            raise NotImplementedError(
+                f"Automatic grad_op construction for solvent type '{solvent_type}' is not implemented. "
+                "Pass a BaseGradientOP explicitly."
+            ) from e
