@@ -14,11 +14,10 @@ from typing import TYPE_CHECKING
 import quaxed.numpy as jnp
 import unxt
 
-from ..api.electrolyte import Electrolyte
-
 if TYPE_CHECKING:
     from typing import Dict
     import jax
+    from ..api.electrolyte import Electrolyte
 from ..utils import constants
 from ..utils.unit_conversion import UNIT_SYSTEMS
 

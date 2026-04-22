@@ -183,7 +183,7 @@ class NonLinearPoissonBoltzmann(BasePoissonBoltzmann):
 
         z_tot = 0.0
         zi = 0.0
-        for name, ion in ions.items():
+        for _name, ion in ions.items():
             zi = float(
                 ion.charge.to("C").value / constants.ELEMENTARY_CHARGE.to("C").value
             )

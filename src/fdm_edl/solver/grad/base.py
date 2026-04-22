@@ -4,6 +4,8 @@ from dataclasses import dataclass
 import jax
 import jax.numpy as jnp
 
+Array = jax.Array
+
 
 @jax.tree_util.register_pytree_node_class
 @dataclass(frozen=True)
@@ -82,7 +84,7 @@ class BaseGradientOP:
     boundary_points: int = 4
     interior_points: int = 3
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.boundary_points not in (3, 4, 5):
             raise ValueError("boundary_points must be 3, 4, or 5.")
         if self.interior_points not in (3, 5):
@@ -100,7 +102,9 @@ class BaseGradientOP:
         return children, aux_data
 
     @classmethod
-    def tree_unflatten(cls, aux_data, children):
+    def tree_unflatten(
+        cls, aux_data: tuple[bool, int, int], children: tuple[()]
+    ) -> "BaseGradientOP":
         uniform, boundary_points, interior_points = aux_data
         return cls(
             uniform=uniform,
@@ -109,7 +113,7 @@ class BaseGradientOP:
         )
 
     # --- public API ---
-    def __call__(self, x, y):
+    def __call__(self, x: Array, y: Array) -> tuple[Array, None]:
         """
         Compute gradient and Laplacian.
 
@@ -133,7 +137,7 @@ class BaseGradientOP:
         grad = self.grad(_x, _y)
         return (grad, None)  # placeholder for negative gradient of D-field
 
-    def grad(self, x, y):
+    def grad(self, x: Array, y: Array) -> Array:
         """
         Compute gradient (1st derivative).
 
@@ -176,7 +180,7 @@ class BaseGradientOP:
     #     return _nonuniform_lap(x, y, self.boundary_points, self.interior_points)
 
 
-def _fd_coeffs_1d(x_nodes, x0, deriv_order: int):
+def _fd_coeffs_1d(x_nodes: Array, x0: Array | float, deriv_order: int) -> Array:
     """
     Compute finite-difference weights on (possibly) nonuniform nodes.
 
@@ -252,7 +256,9 @@ def _fd_coeffs_1d(x_nodes, x0, deriv_order: int):
     return c[:, m]
 
 
-def _uniform_grad(x, y, boundary_points: int, interior_points: int):
+def _uniform_grad(
+    x: Array, y: Array, boundary_points: int, interior_points: int
+) -> Array:
     """
     Uniform-grid backend for gradient (1st derivative).
     """
@@ -293,8 +299,8 @@ def _uniform_grad(x, y, boundary_points: int, interior_points: int):
 
 
 def _nonuniform_derivative(
-    x, y, boundary_points: int, interior_points: int, order: int
-):
+    x: Array, y: Array, boundary_points: int, interior_points: int, order: int
+) -> Array:
     """
     Nonuniform-grid backend for a single derivative order via local Fornberg weights.
     """
@@ -307,7 +313,7 @@ def _nonuniform_derivative(
 
     out = jnp.empty_like(y)
 
-    def onesided_eval(i, order: int, left_bias: bool):
+    def onesided_eval(i: int, order: int, left_bias: bool) -> Array:
         idx = jnp.arange(0, kB) if left_bias else jnp.arange(n - kB, n)
         x_nodes = x[idx]
         y_nodes = y[idx]
@@ -318,7 +324,7 @@ def _nonuniform_derivative(
     out = out.at[0].set(onesided_eval(0, order, True))
     out = out.at[-1].set(onesided_eval(n - 1, order, False))
 
-    def centered_eval(i, order: int):
+    def centered_eval(i: int, order: int) -> Array:
         idx = jnp.arange(i - r, i + r + 1)
         x_nodes = x[idx]
         y_nodes = y[idx]
@@ -337,7 +343,9 @@ def _nonuniform_derivative(
     return out
 
 
-def _nonuniform_grad(x, y, boundary_points: int, interior_points: int):
+def _nonuniform_grad(
+    x: Array, y: Array, boundary_points: int, interior_points: int
+) -> Array:
     """
     Nonuniform-grid backend for gradient (1st derivative).
     """

@@ -6,6 +6,8 @@ import jax.numpy as jnp
 
 from .base import BaseGradientOP, _nonuniform_derivative
 
+Array = jax.Array
+
 
 @jax.tree_util.register_pytree_node_class
 @dataclass(frozen=True)
@@ -81,7 +83,7 @@ class LaplacianOP(BaseGradientOP):
     """
 
     # --- public API ---
-    def __call__(self, x, y):
+    def __call__(self, x: Array, y: Array) -> tuple[Array, Array]:
         """
         Compute gradient and Laplacian.
 
@@ -106,7 +108,7 @@ class LaplacianOP(BaseGradientOP):
         lap = self.laplacian(_x, _y)
         return (grad, lap)  # placeholder for negative gradient of D-field
 
-    def laplacian(self, x, y):
+    def laplacian(self, x: Array, y: Array) -> Array:
         """
         Compute Laplacian (2nd derivative) only.
 
@@ -127,7 +129,9 @@ class LaplacianOP(BaseGradientOP):
         return _nonuniform_lap(x, y, self.boundary_points, self.interior_points)
 
 
-def _uniform_lap(x, y, boundary_points: int, interior_points: int):
+def _uniform_lap(
+    x: Array, y: Array, boundary_points: int, interior_points: int
+) -> Array:
     """
     Uniform-grid backend for Laplacian (2nd derivative).
     """
@@ -168,7 +172,9 @@ def _uniform_lap(x, y, boundary_points: int, interior_points: int):
     return lap
 
 
-def _nonuniform_lap(x, y, boundary_points: int, interior_points: int):
+def _nonuniform_lap(
+    x: Array, y: Array, boundary_points: int, interior_points: int
+) -> Array:
     """
     Nonuniform-grid backend for Laplacian (2nd derivative).
     """

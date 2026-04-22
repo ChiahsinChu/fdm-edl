@@ -1,10 +1,25 @@
 ---
 status: draft
 author: Jia-Xin Zhu, AI Agent
-last_updated: 2026-04-21
+last_updated: 2026-04-22
 ---
 
 # CHANGELOG
+
+## [Unreleased] - 2026-04-22
+
+### Added
+
+- New gradient consistency test in `tests/test_grad.py` comparing `LaplacianOP` finite-difference derivatives against JAX autodiff derivatives for the nonlinear PB potential profile
+
+### Changed
+
+- Improved type annotations in gradient operator modules: `src/fdm_edl/solver/grad/base.py` and `src/fdm_edl/solver/grad/laplacian.py`
+- Moved `Electrolyte` import to `TYPE_CHECKING` block in `src/fdm_edl/models/base.py` to avoid runtime-only import usage
+
+### Fixed
+
+- Resolved an unused loop-variable lint issue in `src/fdm_edl/benchmark/pb1d.py`
 
 ## [0.1.dev11] - 2026-04-21
 

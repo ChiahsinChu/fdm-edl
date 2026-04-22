@@ -1,7 +1,7 @@
 ---
 status: draft
 author: Jia-Xin Zhu, AI Agent
-last_updated: 2026-04-21
+last_updated: 2026-04-22
 ---
 
 # Development Plans
@@ -62,6 +62,7 @@ last_updated: 2026-04-21
 ## Unit Tests
 
 - [ ] Add unit tests for the PBE residual and Newton solver
+- [x] Add numerical-consistency tests for gradient/Laplacian operators against JAX autodiff (`tests/test_grad.py`)
 
 ## Chores
 
