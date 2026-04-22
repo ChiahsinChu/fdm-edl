@@ -1,12 +1,17 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import jax
 import unxt
 
-from ...api.edl import ElectricalDoubleLayer
 from ...utils import unit_conversion as uc
 from .base import BaseSolvent
 from .langevin import langevin_function
+
+if TYPE_CHECKING:
+    from ...api.edl import ElectricalDoubleLayer
 
 
 def booth_eps(
@@ -49,8 +54,10 @@ def booth_eps(
     return jax.lax.cond(efield > 1e-2, large_field, small_field, operand=None)
 
 
-class BoothDielectrics(BaseSolvent, types=("langevin",)):
+class BoothDielectrics(BaseSolvent):
     """Field-dependent dielectric response model based on Langevin dipole alignment."""
+
+    type = "booth"
 
     def __init__(
         self,

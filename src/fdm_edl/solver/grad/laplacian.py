@@ -4,6 +4,8 @@ from dataclasses import dataclass
 import jax
 import jax.numpy as jnp
 
+from ...utils import constants
+from ...utils import unit_conversion as uc
 from .base import BaseGradientOP, _nonuniform_derivative
 
 Array = jax.Array
@@ -82,33 +84,7 @@ class LaplacianOP(BaseGradientOP):
         grad, lap = jax.jit(op)(x, y)
     """
 
-    # --- public API ---
-    def __call__(self, x: Array, y: Array) -> tuple[Array, Array]:
-        """
-        Compute gradient and Laplacian.
-
-        Parameters
-        ----------
-        x : jax.numpy.ndarray
-            Grid locations with shape ``(n,)``.
-        y : jax.numpy.ndarray
-            Function values with shape ``(n,)`` corresponding to ``y ≈ f(x)``.
-
-        Returns
-        -------
-        grad : jax.numpy.ndarray
-            First derivative approximation with shape ``(n,)``.
-        lap : jax.numpy.ndarray
-            Second derivative approximation with shape ``(n,)``.
-        """
-        sorted_idx = jnp.argsort(x)
-        _x = x[sorted_idx]
-        _y = y[sorted_idx]
-        grad = self.grad(_x, _y)
-        lap = self.laplacian(_x, _y)
-        return (grad, lap)  # placeholder for negative gradient of D-field
-
-    def laplacian(self, x: Array, y: Array) -> Array:
+    def _div_D(self, x: Array, y: Array, grad: Array) -> Array:
         """
         Compute Laplacian (2nd derivative) only.
 
@@ -124,9 +100,20 @@ class LaplacianOP(BaseGradientOP):
         lap : jax.numpy.ndarray
             Second derivative approximation with shape ``(n,)``.
         """
+
         if self.uniform:
-            return _uniform_lap(x, y, self.boundary_points, self.interior_points)
-        return _nonuniform_lap(x, y, self.boundary_points, self.interior_points)
+            lap = _uniform_lap(x, y, self.boundary_points, self.interior_points)
+        else:
+            lap = _nonuniform_lap(x, y, self.boundary_points, self.interior_points)
+
+        eps_0 = constants.VACUUM_PERMITTIVITY.to(
+            uc.UNIT_SYSTEMS["metal"]["permittivity"]
+        ).value
+        if self.eps_func is None:
+            eps = eps_0
+        else:
+            eps = self.eps_func(jnp.abs(grad)) * eps_0
+        return -lap * eps
 
 
 def _uniform_lap(

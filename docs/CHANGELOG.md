@@ -10,16 +10,21 @@ last_updated: 2026-04-22
 
 ### Added
 
-- New gradient consistency test in `tests/test_grad.py` comparing `LaplacianOP` finite-difference derivatives against JAX autodiff derivatives for the nonlinear PB potential profile
+- New `ConservativeFluxGradOP` in `src/fdm_edl/solver/grad/conservative_flux.py` for conservative finite-volume evaluation of `div(eps * E)` on 1D grids
+- Exported `ConservativeFluxGradOP` from `src/fdm_edl/solver/grad/__init__.py`
 
 ### Changed
 
-- Improved type annotations in gradient operator modules: `src/fdm_edl/solver/grad/base.py` and `src/fdm_edl/solver/grad/laplacian.py`
-- Moved `Electrolyte` import to `TYPE_CHECKING` block in `src/fdm_edl/models/base.py` to avoid runtime-only import usage
+- `ElectricalDoubleLayer` now selects gradient operators by solvent type in 1D: `LaplacianOP` for `uniform`, `ConservativeFluxGradOP` for `langevin`/`booth`
+- PB residual in `ElectricalDoubleLayer._loss()` is now expressed consistently as `div_D - rho_ion`, with boundary-condition updates using the returned `grad(phi)` field
+- `BaseGradientOP` now carries an `eps_func` callback and returns `(grad_phi, div_D)` from its public call interface
+- `LaplacianOP` now computes `div_D` via dielectric-aware scaling of the Laplacian using `eps_func`
+- Solvent subclasses now declare canonical registry keys via class attribute `type` (for example: `uniform`, `langevin`, `booth`)
+- `BoothDielectrics` type registration corrected to `booth` and its `ElectricalDoubleLayer` import moved under `TYPE_CHECKING`
 
 ### Fixed
 
-- Resolved an unused loop-variable lint issue in `src/fdm_edl/benchmark/pb1d.py`
+- Updated `tests/test_grad.py` to validate `div_D` outputs against autodiff Laplacian with dielectric scaling, matching the new gradient-operator API
 
 ## [0.1.dev11] - 2026-04-21
 

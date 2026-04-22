@@ -16,7 +16,7 @@ from ..models import ChargeModel, create_charge_model
 from ..models.base import charge_density_profile
 from ..models.solvent import BaseSolvent
 from ..solver.base import BaseSolver, RootSolveResult
-from ..solver.grad import BaseGradientOP, LaplacianOP
+from ..solver.grad import BaseGradientOP, ConservativeFluxGradOP, LaplacianOP
 from ..utils import constants, load_dict
 from ..utils import unit_conversion as uc
 from ..utils.bc import BoundaryCondition
@@ -251,17 +251,26 @@ class ElectricalDoubleLayer:
         if self.dim != 1:
             raise NotImplementedError("Only dim=1 is currently supported.")
 
+        # For 1-D, use the flat coordinate vector
         coordinates_1d = coordinates_2d[:, 0]
         # --- Build gradient operator if not provided --------------------------------
         if grad_op is None:
             if self.dim == 1:
-                # For 1-D, use the flat coordinate vector
-                grad_op = LaplacianOP()
+                # todo: check correspondence between grad_op and dielectric model
+                if self.electrolyte.solvent.type == "uniform":
+                    grad_op = LaplacianOP(
+                        eps_func=self.electrolyte.solvent._compute_eps
+                    )
+                elif self.electrolyte.solvent.type in ("langevin", "booth"):
+                    grad_op = ConservativeFluxGradOP(
+                        eps_func=self.electrolyte.solvent._compute_eps
+                    )
             else:
                 raise NotImplementedError(
                     f"Numerical gradient operator for dim={self.dim} is not yet implemented. "
                     "Pass a BaseGradientOP explicitly."
                 )
+
         grad_fn = jax.jit(grad_op)
 
         # --- Zero initial guess if not provided ----------------
@@ -365,9 +374,8 @@ class ElectricalDoubleLayer:
             Poisson-Boltzmann equation and all BCs are satisfied.
         """
 
-        # --- Gradient of D-field -------------------------------------------------------
-        grad, lap = grad_op(coordinates, phi)
-        grad_dfield = -lap * self.electrolyte.solvent._eps_0
+        # --- Gradient of phi and divergence of electric displacement ---------
+        g_phi, div_D = grad_op(coordinates, phi)
 
         # --- Ionic charge density (delegated to charge model) ----------------
         rho_ion = self.charge_model.charge_density(
@@ -376,10 +384,10 @@ class ElectricalDoubleLayer:
 
         # --- Physics residual at all nodes -----------------------------------
         # residual: e/Angstrom^3
-        residual = -grad_dfield + rho_ion
+        residual = div_D - rho_ion
 
         # --- Apply boundary conditions -----------
         for bc in boundary_conditions:
-            residual = bc.update_residual(residual, phi, grad)
+            residual = bc.update_residual(residual, phi, g_phi)
 
         return residual

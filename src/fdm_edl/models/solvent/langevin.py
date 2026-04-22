@@ -77,8 +77,10 @@ def langevin_eps(
     return jax.lax.cond(efield > 1e-3, large_field, small_field, operand=None)
 
 
-class LangevinDielectrics(BaseSolvent, types=("langevin",)):
+class LangevinDielectrics(BaseSolvent):
     """Field-dependent dielectric response model based on Langevin dipole alignment."""
+
+    type = "langevin"
 
     def __init__(
         self,

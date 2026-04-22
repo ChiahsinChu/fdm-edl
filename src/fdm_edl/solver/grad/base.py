@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import jax
 import jax.numpy as jnp
+
+from ...models.solvent.base import UniformDielectrics
 
 Array = jax.Array
 
@@ -83,6 +86,7 @@ class BaseGradientOP:
     uniform: bool = True
     boundary_points: int = 4
     interior_points: int = 3
+    eps_func: Callable[[Array], Array] = UniformDielectrics()._compute_eps
 
     def __post_init__(self) -> None:
         if self.boundary_points not in (3, 4, 5):
@@ -98,22 +102,30 @@ class BaseGradientOP:
     # --- PyTree protocol (static aux data) ---
     def tree_flatten(self):
         children = ()
-        aux_data = (self.uniform, self.boundary_points, self.interior_points)
+        aux_data = (
+            self.uniform,
+            self.boundary_points,
+            self.interior_points,
+            self.eps_func,
+        )
         return children, aux_data
 
     @classmethod
     def tree_unflatten(
-        cls, aux_data: tuple[bool, int, int], children: tuple[()]
+        cls,
+        aux_data: tuple[bool, int, int, Callable[[Array], Array] | None],
+        children: tuple[()],
     ) -> "BaseGradientOP":
-        uniform, boundary_points, interior_points = aux_data
+        uniform, boundary_points, interior_points, eps_func = aux_data
         return cls(
             uniform=uniform,
             boundary_points=boundary_points,
             interior_points=interior_points,
+            eps_func=eps_func,
         )
 
     # --- public API ---
-    def __call__(self, x: Array, y: Array) -> tuple[Array, None]:
+    def __call__(self, x: Array, y: Array) -> tuple[Array, Array]:
         """
         Compute gradient and Laplacian.
 
@@ -134,10 +146,11 @@ class BaseGradientOP:
         sorted_idx = jnp.argsort(x)
         _x = x[sorted_idx]
         _y = y[sorted_idx]
-        grad = self.grad(_x, _y)
-        return (grad, None)  # placeholder for negative gradient of D-field
+        grad_phi = self._grad(_x, _y)
+        div_D = self._div_D(_x, _y, grad_phi)
+        return (grad_phi, div_D)
 
-    def grad(self, x: Array, y: Array) -> Array:
+    def _grad(self, x: Array, y: Array) -> Array:
         """
         Compute gradient (1st derivative).
 
@@ -157,27 +170,11 @@ class BaseGradientOP:
             return _uniform_grad(x, y, self.boundary_points, self.interior_points)
         return _nonuniform_grad(x, y, self.boundary_points, self.interior_points)
 
-    # def laplacian(self, x, y, *, h=None):
-    #     """
-    #     Compute Laplacian (2nd derivative) only.
-
-    #     Parameters
-    #     ----------
-    #     x : jax.numpy.ndarray
-    #         Grid locations with shape ``(n,)``.
-    #     y : jax.numpy.ndarray
-    #         Function values with shape ``(n,)``.
-    #     h : float or None, optional
-    #         Grid spacing used when ``uniform=True``. If None, uses ``mean(diff(x))``.
-
-    #     Returns
-    #     -------
-    #     lap : jax.numpy.ndarray
-    #         Second derivative approximation with shape ``(n,)``.
-    #     """
-    #     if self.uniform:
-    #         return _uniform_lap(x, y, self.boundary_points, self.interior_points, h)
-    #     return _nonuniform_lap(x, y, self.boundary_points, self.interior_points)
+    def _div_D(self, x: Array, y: Array, grad: Array) -> Array:
+        raise NotImplementedError(
+            "Electric displacement divergence is not implemented in BaseGradientOP. "
+            "Override this method in the subclasses."
+        )
 
 
 def _fd_coeffs_1d(x_nodes: Array, x0: Array | float, deriv_order: int) -> Array:

@@ -9,6 +9,8 @@ from jax import numpy as jnp
 from fdm_edl.api import ElectricalDoubleLayer
 from fdm_edl.benchmark.pb1d import NonLinearPoissonBoltzmann
 from fdm_edl.solver.grad.laplacian import LaplacianOP
+from fdm_edl.utils import constants
+from fdm_edl.utils import unit_conversion as uc
 
 
 class GradientTester:
@@ -17,7 +19,7 @@ class GradientTester:
 
         ad_grad = jax.vmap(jax.grad(self._func))(self.x)
         ad_lap = jax.vmap(jax.hessian(self._func))(self.x)
-        fd_grad, fd_lap = self.grad_op(self.x.value, phi)
+        fd_grad, fd_div_D = self.grad_op(self.x.value, phi)
 
         # Check that the AD and FD gradients are close.
         self.assertTrue(
@@ -28,16 +30,19 @@ class GradientTester:
                 rtol=1e-5,
             )
         )
+
+        eps_0 = constants.VACUUM_PERMITTIVITY.to(
+            uc.UNIT_SYSTEMS["metal"]["permittivity"]
+        ).value
+        eps = self.grad_op.eps_func(jnp.abs(fd_grad)) * eps_0
         self.assertTrue(
             jnp.allclose(
                 ad_lap.value.value,
-                fd_lap,
+                -fd_div_D / eps,
                 atol=1e-5,
                 rtol=1e-5,
             )
         )
-        # rmse = jnp.sqrt(jnp.mean((ad_grad.value - fd_grad) ** 2))
-        # print(f"Gradient RMSE: {rmse:.3e}")
 
 
 class TestLaplacianOP(unittest.TestCase, GradientTester):

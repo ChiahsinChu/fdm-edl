@@ -50,8 +50,11 @@ last_updated: 2026-04-22
 - [x] Add gradient/Laplacian operator infrastructure in `fdm_edl.solver.grad`
 - [x] Implement [`BaseGradientOP`](src/fdm_edl/solver/grad/base.py:15) for numerical gradient operators with JIT-friendly design
 - [x] Implement [`LaplacianOP`](src/fdm_edl/solver/grad/laplacian.py:15) for numerical Laplacian operators
+- [x] Implement [`ConservativeFluxGradOP`](src/fdm_edl/solver/grad/conservative_flux.py:1) for conservative finite-volume `div(eps * E)` evaluation
 - [x] Support for both uniform and nonuniform grids with configurable stencil points
 - [x] Default to [`LaplacianOP`](src/fdm_edl/solver/grad/laplacian.py:15) in [`ElectricalDoubleLayer`](src/fdm_edl/api/edl.py:25)
+- [x] Route default 1D gradient operator by solvent type (`uniform` -> `LaplacianOP`; `langevin`/`booth` -> `ConservativeFluxGradOP`)
+- [ ] Validate and document the mapping between gradient operators and solvent dielectric models
 
 ## Documentation
 
@@ -63,6 +66,7 @@ last_updated: 2026-04-22
 
 - [ ] Add unit tests for the PBE residual and Newton solver
 - [x] Add numerical-consistency tests for gradient/Laplacian operators against JAX autodiff (`tests/test_grad.py`)
+- [ ] Add dedicated unit tests for `ConservativeFluxGradOP` on nonuniform grids and nonlinear dielectric closures
 
 ## Chores
 

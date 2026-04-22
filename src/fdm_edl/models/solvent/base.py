@@ -22,6 +22,7 @@ class BaseSolvent(ABC):
     """
 
     _registry: ClassVar[dict[str, type["BaseSolvent"]]] = {}
+    type: ClassVar[str | tuple[str, ...] | None] = None
 
     def __new__(cls, type: str = "uniform", **kwargs):
         if cls is BaseSolvent:
@@ -39,7 +40,16 @@ class BaseSolvent(ABC):
 
     def __init_subclass__(cls, *, types: tuple[str, ...] = (), **kwargs):
         super().__init_subclass__(**kwargs)
-        for type in types:
+        class_type = getattr(cls, "type", None)
+
+        if class_type is None:
+            normalized_types = types
+        elif isinstance(class_type, str):
+            normalized_types = (class_type,)
+        else:
+            normalized_types = tuple(class_type)
+
+        for type in normalized_types:
             BaseSolvent._registry[type.lower()] = cls
 
     def compute_eps(self, efield: unxt.Quantity) -> jax.Array:
@@ -100,8 +110,10 @@ class BaseSolvent(ABC):
         return self.eps_inf * _EPS_0
 
 
-class UniformDielectrics(BaseSolvent, types=("uniform",)):
+class UniformDielectrics(BaseSolvent):
     """Constant dielectric response model with a fixed relative permittivity."""
+
+    type = "uniform"
 
     def __init__(self, epsilon_r: float = 78.5, **kwargs):
         """Initialize a uniform-dielectric model.
