@@ -8,12 +8,10 @@ from jax import numpy as jnp
 
 from fdm_edl.api import ElectricalDoubleLayer
 from fdm_edl.benchmark.pb1d import NonLinearPoissonBoltzmann
-from fdm_edl.grad.finite_difference import FiniteDifferenceOP
-from fdm_edl.utils import constants
-from fdm_edl.utils import unit_conversion as uc
+from fdm_edl.op.cartesian.fd import EuclideanFDOp
 
 
-class GradientTester:
+class GradientOpTester:
     def test_numerical(self) -> None:
         phi = self._func(self.x)
 
@@ -31,10 +29,7 @@ class GradientTester:
             )
         )
 
-        eps_0 = constants.VACUUM_PERMITTIVITY.to(
-            uc.UNIT_SYSTEMS["metal"]["permittivity"]
-        ).value
-        eps = self.grad_op.eps_func(jnp.abs(fd_grad)) * eps_0
+        eps = self.grad_op.eps_func(jnp.abs(fd_grad))
         self.assertTrue(
             jnp.allclose(
                 ad_lap.value.value,
@@ -45,7 +40,7 @@ class GradientTester:
         )
 
 
-class TestLaplacianOP(unittest.TestCase, GradientTester):
+class TestEuclideanFDOp(unittest.TestCase, GradientOpTester):
     def setUp(self) -> None:
         example_input = Path(__file__).resolve().parent / "data" / "CaSO4.json"
         edl_obj = ElectricalDoubleLayer(example_input)
@@ -66,4 +61,57 @@ class TestLaplacianOP(unittest.TestCase, GradientTester):
 
         self.x = unxt.Quantity(jnp.linspace(0, 50.0, 500), unit="angstrom")
         self._func = _func
-        self.grad_op = FiniteDifferenceOP()
+        self.grad_op = EuclideanFDOp()
+
+
+# class TestCylindricalGradientOps(unittest.TestCase):
+#     def test_finite_difference_cylindrical_operator(self) -> None:
+#         x = jnp.linspace(0.05, 3.0, 800)
+#         y = x**2
+
+#         op_cart = EuclideanFDOp(
+#             uniform=True,
+#             boundary_points=5,
+#             interior_points=5,
+#             eps_func=lambda e: jnp.ones_like(e),
+#             coordinate_system="cartesian",
+#         )
+#         op_cyl = EuclideanFDOp(
+#             uniform=True,
+#             boundary_points=5,
+#             interior_points=5,
+#             eps_func=lambda e: jnp.ones_like(e),
+#             coordinate_system="cylindrical",
+#         )
+
+#         _, div_cart = op_cart(x, y)
+#         _, div_cyl = op_cyl(x, y)
+
+#         eps_0 = constants.VACUUM_PERMITTIVITY.to(
+#             uc.UNIT_SYSTEMS["metal"]["permittivity"]
+#         ).value
+#         lap_cart = -div_cart / eps_0
+#         lap_cyl = -div_cyl / eps_0
+
+#         # Ignore boundary rows where one-sided stencils are used.
+#         self.assertTrue(jnp.allclose(lap_cart[5:-5], 2.0, atol=3e-3, rtol=3e-3))
+#         self.assertTrue(jnp.allclose(lap_cyl[5:-5], 4.0, atol=8e-3, rtol=8e-3))
+
+#     def test_finite_volume_cylindrical_operator(self) -> None:
+#         x = jnp.linspace(0.05, 3.0, 800)
+#         y = x**2
+
+#         op_cart = EuclideanFVOp(
+#             eps_func=lambda e: jnp.ones_like(e),
+#             coordinate_system="cartesian",
+#         )
+#         op_cyl = EuclideanFVOp(
+#             eps_func=lambda e: jnp.ones_like(e),
+#             coordinate_system="cylindrical",
+#         )
+
+#         _, div_cart = op_cart(x, y)
+#         _, div_cyl = op_cyl(x, y)
+
+#         self.assertTrue(jnp.allclose(div_cart[5:-5], -2.0, atol=5e-6, rtol=5e-6))
+#         self.assertTrue(jnp.allclose(div_cyl[5:-5], -4.0, atol=5e-6, rtol=5e-6))

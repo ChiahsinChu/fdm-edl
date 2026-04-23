@@ -12,15 +12,10 @@ import unxt
 if TYPE_CHECKING:
     from typing import Sequence
 
-from ..grad import (
-    BaseGradientOP,
-    FiniteDifferenceOP,
-    FiniteVolumeOP,
-    create_gradient_op,
-)
 from ..models import ChargeModel, create_charge_model
 from ..models.base import charge_density_profile
 from ..models.solvent import BaseSolvent
+from ..op import BaseGradientOP, EuclideanFDOp, EuclideanFVOp, create_gradient_op
 from ..solver.base import BaseSolver, RootSolveResult
 from ..utils import constants, load_dict
 from ..utils import unit_conversion as uc
@@ -375,9 +370,12 @@ class ElectricalDoubleLayer:
             jnp.asarray(phi), self.electrolyte, self._temperature
         )
 
+        eps_0 = constants.VACUUM_PERMITTIVITY.to(
+            uc.UNIT_SYSTEMS["metal"]["permittivity"]
+        ).value
         # --- Physics residual at all nodes -----------------------------------
         # residual: e/Angstrom^3
-        residual = div_D - rho_ion
+        residual = div_D * eps_0 - rho_ion
 
         # --- Apply boundary conditions -----------
         for bc in boundary_conditions:
@@ -401,11 +399,11 @@ class ElectricalDoubleLayer:
     def _validate_user_grad_op(self, grad_op: BaseGradientOP) -> None:
         solvent_type = self.electrolyte.solvent.type
 
-        # Enforce: for uniform solvent, do not allow FiniteDifferenceOP
-        if solvent_type == "uniform" and isinstance(grad_op, FiniteDifferenceOP):
+        # Enforce: for uniform solvent, do not allow EuclideanFDOp
+        if solvent_type == "uniform" and isinstance(grad_op, EuclideanFDOp):
             raise ValueError(
-                "Invalid grad_op for solvent type 'uniform': FiniteDifferenceOP is not allowed. "
-                "Use FiniteVolumeOP (or pass a different BaseGradientOP)."
+                "Invalid grad_op for solvent type 'uniform': EuclideanFDOp is not allowed. "
+                "Use EuclideanFVOp (or pass a different BaseGradientOP)."
             )
 
     def _build_default_grad_op(self) -> BaseGradientOP:
@@ -425,9 +423,9 @@ class ElectricalDoubleLayer:
     def _default_grad_op_class_for_solvent(solvent_type: str) -> type[BaseGradientOP]:
         """Map solvent type -> gradient operator class."""
         mapping: dict[str, type[BaseGradientOP]] = {
-            "uniform": FiniteDifferenceOP,
-            "langevin": FiniteVolumeOP,
-            "booth": FiniteVolumeOP,
+            "uniform": EuclideanFDOp,
+            "langevin": EuclideanFVOp,
+            "booth": EuclideanFVOp,
         }
         try:
             return mapping[solvent_type]

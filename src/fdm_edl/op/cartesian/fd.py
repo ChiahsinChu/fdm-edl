@@ -1,25 +1,24 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-from collections.abc import Callable
 from dataclasses import dataclass
 
 import jax
 import jax.numpy as jnp
 
-from ..models.solvent.base import UniformDielectrics
+from ..base import BaseGradientOP
 
 Array = jax.Array
 
 
 @jax.tree_util.register_pytree_node_class
 @dataclass(frozen=True)
-class BaseGradientOP:
+class EuclideanFDOp(BaseGradientOP):
     """
-        Base class for 1-D gradient operators on sampled data ``y ≈ f(x)``.
+        Finite-difference 1-D gradient and displacement-divergence operator.
 
-        The operator computes the first derivative ``dy/dx`` from samples on a grid
-        ``x`` and delegates the second returned quantity to ``_div_D``. Concrete
-        subclasses define that second term, for example a finite-difference
-        approximation to ``-∇·(ε∇y)`` or a finite-volume displacement divergence.
+        The operator returns the first derivative ``dy/dx`` together with
+        ``-ε d²y/dx²`` evaluated from samples on a grid ``x``. When ``eps_func`` is
+        provided, the permittivity is evaluated from ``|dy/dx|`` before forming the
+        second output.
 
     This class is designed to be JIT-friendly in JAX:
     - The instance contains only small Python scalars (no arrays).
@@ -62,94 +61,27 @@ class BaseGradientOP:
 
     Examples
     --------
-    Finite-difference operator on a uniform grid::
+    Uniform grid, 5-point interior and boundary stencils::
 
         import jax
         import jax.numpy as jnp
-        from fdm_edl.solver.grad import FiniteDifferenceOP
+        from fdm_edl.solver.grad import EuclideanFDOp
 
         x = jnp.linspace(0.0, 1.0, 1024)
         y = jnp.sin(2 * jnp.pi * x)
 
-        op = FiniteDifferenceOP(uniform=True, boundary_points=5, interior_points=5)
+        op = EuclideanFDOp(uniform=True, boundary_points=5, interior_points=5)
         op_jit = jax.jit(op)
         grad, div_D = op_jit(x, y)
 
-    Nonuniform grid with the same operator::
+    Nonuniform grid::
 
         x = jnp.sort(jax.random.uniform(jax.random.key(0), (1024,)))
         y = jnp.sin(2 * jnp.pi * x)
 
-        op = FiniteDifferenceOP(uniform=False, boundary_points=5, interior_points=5)
+        op = EuclideanFDOp(uniform=False, boundary_points=5, interior_points=5)
         grad, div_D = jax.jit(op)(x, y)
     """
-
-    uniform: bool = True
-    boundary_points: int = 4
-    interior_points: int = 3
-    eps_func: Callable[[Array], Array] = UniformDielectrics()._compute_eps
-
-    def __post_init__(self) -> None:
-        if self.boundary_points not in (3, 4, 5):
-            raise ValueError("boundary_points must be 3, 4, or 5.")
-        if self.interior_points not in (3, 5):
-            raise ValueError("interior_points must be 3 or 5.")
-        if self.interior_points > self.boundary_points:
-            raise ValueError(
-                "interior_points should be <= boundary_points "
-                "(increase boundary_points or reduce interior_points)."
-            )
-
-    # --- PyTree protocol (static aux data) ---
-    def tree_flatten(self):
-        children = ()
-        aux_data = (
-            self.uniform,
-            self.boundary_points,
-            self.interior_points,
-            self.eps_func,
-        )
-        return children, aux_data
-
-    @classmethod
-    def tree_unflatten(
-        cls,
-        aux_data: tuple[bool, int, int, Callable[[Array], Array] | None],
-        children: tuple[()],
-    ) -> "BaseGradientOP":
-        uniform, boundary_points, interior_points, eps_func = aux_data
-        return cls(
-            uniform=uniform,
-            boundary_points=boundary_points,
-            interior_points=interior_points,
-            eps_func=eps_func,
-        )
-
-    # --- public API ---
-    def __call__(self, x: Array, y: Array) -> tuple[Array, Array]:
-        """
-        Compute the gradient and subclass-specific divergence term.
-
-        Parameters
-        ----------
-        x : jax.numpy.ndarray
-            Grid locations with shape ``(n,)``.
-        y : jax.numpy.ndarray
-            Function values with shape ``(n,)`` corresponding to ``y ≈ f(x)``.
-
-        Returns
-        -------
-        grad : jax.numpy.ndarray
-            First derivative approximation with shape ``(n,)``.
-        div_D : jax.numpy.ndarray
-            Subclass-defined divergence-like term with shape ``(n,)``.
-        """
-        sorted_idx = jnp.argsort(x)
-        _x = x[sorted_idx]
-        _y = y[sorted_idx]
-        grad_phi = self._grad(_x, _y)
-        div_D = self._div_D(_x, _y, grad_phi)
-        return (grad_phi, div_D)
 
     def _grad(self, x: Array, y: Array) -> Array:
         """
@@ -172,10 +104,48 @@ class BaseGradientOP:
         return _nonuniform_grad(x, y, self.boundary_points, self.interior_points)
 
     def _div_D(self, x: Array, y: Array, grad: Array) -> Array:
-        raise NotImplementedError(
-            "Electric displacement divergence is not implemented in BaseGradientOP. "
-            "Override this method in the subclasses."
-        )
+        """
+        Compute Laplacian (2nd derivative) only.
+
+        Parameters
+        ----------
+        x : jax.numpy.ndarray
+            Grid locations with shape ``(n,)``.
+        y : jax.numpy.ndarray
+            Function values with shape ``(n,)``.
+
+        Returns
+        -------
+        lap : jax.numpy.ndarray
+            Second derivative approximation with shape ``(n,)``.
+        """
+        lap = self._lap(x, y)
+        # relative permittivity as a function of |E|=|grad|
+        eps = self.eps_func(jnp.abs(grad))
+        return -lap * eps
+
+    def _lap(self, x: Array, y: Array) -> Array:
+        """
+        Compute Laplacian (2nd derivative) only.
+
+        Parameters
+        ----------
+        x : jax.numpy.ndarray
+            Grid locations with shape ``(n,)``.
+        y : jax.numpy.ndarray
+            Function values with shape ``(n,)``.
+
+        Returns
+        -------
+        lap : jax.numpy.ndarray
+            Second derivative approximation with shape ``(n,)``.
+        """
+
+        if self.uniform:
+            lap = _uniform_lap(x, y, self.boundary_points, self.interior_points)
+        else:
+            lap = _nonuniform_lap(x, y, self.boundary_points, self.interior_points)
+        return lap
 
 
 def _fd_coeffs_1d(x_nodes: Array, x0: Array | float, deriv_order: int) -> Array:
@@ -348,3 +318,55 @@ def _nonuniform_grad(
     Nonuniform-grid backend for gradient (1st derivative).
     """
     return _nonuniform_derivative(x, y, boundary_points, interior_points, order=1)
+
+
+def _uniform_lap(
+    x: Array, y: Array, boundary_points: int, interior_points: int
+) -> Array:
+    """
+    Uniform-grid backend for Laplacian (2nd derivative).
+    """
+    hh = jnp.mean(x[1:] - x[:-1])
+    hh2 = hh * hh
+
+    lap = jnp.empty_like(y)
+
+    # --- interior ---
+    if interior_points == 3:
+        lap = lap.at[1:-1].set((y[:-2] - 2 * y[1:-1] + y[2:]) / hh2)
+    else:
+        lap = lap.at[2:-2].set(
+            (-y[4:] + 16 * y[3:-1] - 30 * y[2:-2] + 16 * y[1:-3] - y[:-4]) / (12 * hh2)
+        )
+
+        # fallback for i=1 and i=n-2
+        lap = lap.at[1].set((y[0] - 2 * y[1] + y[2]) / hh2)
+        lap = lap.at[-2].set((y[-3] - 2 * y[-2] + y[-1]) / hh2)
+
+    # --- boundaries ---
+    k = boundary_points
+    if k == 3:
+        lap = lap.at[0].set((y[0] - 2 * y[1] + y[2]) / hh2)
+        lap = lap.at[-1].set((y[-3] - 2 * y[-2] + y[-1]) / hh2)
+    elif k == 4:
+        lap = lap.at[0].set((2 * y[0] - 5 * y[1] + 4 * y[2] - y[3]) / hh2)
+        lap = lap.at[-1].set((2 * y[-1] - 5 * y[-2] + 4 * y[-3] - y[-4]) / hh2)
+    else:  # k == 5
+        lap = lap.at[0].set(
+            (35 * y[0] - 104 * y[1] + 114 * y[2] - 56 * y[3] + 11 * y[4]) / (12 * hh2)
+        )
+        lap = lap.at[-1].set(
+            (35 * y[-1] - 104 * y[-2] + 114 * y[-3] - 56 * y[-4] + 11 * y[-5])
+            / (12 * hh2)
+        )
+
+    return lap
+
+
+def _nonuniform_lap(
+    x: Array, y: Array, boundary_points: int, interior_points: int
+) -> Array:
+    """
+    Nonuniform-grid backend for Laplacian (2nd derivative).
+    """
+    return _nonuniform_derivative(x, y, boundary_points, interior_points, order=2)

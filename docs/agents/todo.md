@@ -1,7 +1,7 @@
 ---
 status: draft
 author: Jia-Xin Zhu, AI Agent
-last_updated: 2026-04-22
+last_updated: 2026-04-23
 ---
 
 # Development Plans
@@ -43,18 +43,20 @@ last_updated: 2026-04-22
 
 ### Nanotubes
 
-- [ ] OPs for cylindrical coordinates
+- [x] OPs for cylindrical coordinates
 
 ### Gradient Operators
 
-- [x] Add gradient/Laplacian operator infrastructure in `fdm_edl.grad`
-- [x] Implement [`BaseGradientOP`](src/fdm_edl/grad/base.py:15) for numerical gradient operators with JIT-friendly design
-- [x] Implement [`FiniteDifferenceOP`](src/fdm_edl/grad/finite_difference.py:15) for numerical Laplacian operators
-- [x] Implement [`FiniteVolumeOP`](src/fdm_edl/grad/finite_volume.py:1) for conservative finite-volume `div(eps * E)` evaluation
+- [x] Add gradient/Laplacian operator infrastructure in `fdm_edl.solver.grad`
+- [x] Implement [`BaseGradientOP`](src/fdm_edl/solver/grad/base.py:15) for numerical gradient operators with JIT-friendly design
+- [x] Implement [`EuclideanFDOp`](src/fdm_edl/solver/grad/laplacian.py:15) for numerical Laplacian operators
+- [x] Implement [`EuclideanFVOp`](src/fdm_edl/solver/grad/conservative_flux.py:1) for conservative finite-volume `div(eps * E)` evaluation
 - [x] Support for both uniform and nonuniform grids with configurable stencil points
-- [x] Default to [`FiniteDifferenceOP`](src/fdm_edl/grad/finite_difference.py:15) in [`ElectricalDoubleLayer`](src/fdm_edl/api/edl.py:25)
-- [x] Route default 1D gradient operator by solvent type (`uniform` -> `FiniteDifferenceOP`; `langevin`/`booth` -> `FiniteVolumeOP`)
+- [x] Default to [`EuclideanFDOp`](src/fdm_edl/solver/grad/laplacian.py:15) in [`ElectricalDoubleLayer`](src/fdm_edl/api/edl.py:25)
+- [x] Route default 1D gradient operator by solvent type (`uniform` -> `EuclideanFDOp`; `langevin`/`booth` -> `EuclideanFVOp`)
+- [x] Add coordinate-system-aware operator package `fdm_edl.op` with cartesian/axisymmetric FD+FV implementations and factory dispatch
 - [ ] Validate and document the mapping between gradient operators and solvent dielectric models
+- [ ] Add focused regression tests for axisymmetric `r=0` behavior in FD/FV divergence operators
 
 ## Documentation
 
@@ -66,7 +68,7 @@ last_updated: 2026-04-22
 
 - [ ] Add unit tests for the PBE residual and Newton solver
 - [x] Add numerical-consistency tests for gradient/Laplacian operators against JAX autodiff (`tests/test_grad.py`)
-- [ ] Add dedicated unit tests for `FiniteVolumeOP` on nonuniform grids and nonlinear dielectric closures
+- [ ] Add dedicated unit tests for `EuclideanFVOp` on nonuniform grids and nonlinear dielectric closures
 
 ## Chores
 

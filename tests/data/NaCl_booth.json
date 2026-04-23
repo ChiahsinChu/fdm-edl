@@ -11,11 +11,13 @@
     "ions": {
       "Na": {
         "molar_conc": 0.01,
-        "charge": 1.0
+        "charge": 1.0,
+        "radius": 3.6
       },
       "Cl": {
         "molar_conc": 0.01,
-        "charge": -1.0
+        "charge": -1.0,
+        "radius": 3.3
       }
     }
   },

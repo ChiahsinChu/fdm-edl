@@ -6,55 +6,14 @@ from dataclasses import dataclass
 import jax
 import jax.numpy as jnp
 
-from .base import BaseGradientOP
+from .fd import EuclideanFDOp
 
 Array = jax.Array
 
 
-def _unit_eps(efield: Array) -> Array:
-    """Return unit relative permittivity for all field values."""
-    return jnp.ones_like(efield)
-
-
-# ---------------------------------------------------------------------------
-# Private pure-JAX helpers (no Python loops; fully JIT-compatible)
-# ---------------------------------------------------------------------------
-
-
-def _faces_from_centers(x: Array) -> Array:
-    """
-    Compute face locations ``x_{i+1/2}`` from cell-centre positions ``x_i``.
-
-    Returns an array of shape ``(N+1,)`` for input of shape ``(N,)``.
-    Interior faces are midpoints of adjacent centres; boundary faces are
-    linearly extrapolated.
-    """
-    xf_int = 0.5 * (x[:-1] + x[1:])  # (N-1,)
-    xf_left = x[0] - 0.5 * (x[1] - x[0])
-    xf_right = x[-1] + 0.5 * (x[-1] - x[-2])
-    return jnp.concatenate([xf_left[None], xf_int, xf_right[None]])  # (N+1,)
-
-
-def _interpolate_faces_to_cells(G_face: Array) -> Array:
-    """
-    Average face-centred values ``G_{i+1/2}`` (shape ``(N-1,)``) to cell centres.
-
-    Returns shape ``(N,)``:
-    - Interior cells (1 .. N-2): arithmetic mean of the two neighbouring faces.
-    - Boundary cells (0, N-1): one-sided (nearest face value).
-    """
-    G_int = 0.5 * (G_face[:-1] + G_face[1:])  # (N-2,)
-    return jnp.concatenate([G_face[:1], G_int, G_face[-1:]])  # (N,)
-
-
-# ---------------------------------------------------------------------------
-# Public class
-# ---------------------------------------------------------------------------
-
-
 @jax.tree_util.register_pytree_node_class
 @dataclass(frozen=True)
-class FiniteVolumeOP(BaseGradientOP):
+class EuclideanFVOp(EuclideanFDOp):
     """
     Conservative finite-volume gradient operator for sampled data ``y ≈ f(x)``.
 
@@ -77,7 +36,7 @@ class FiniteVolumeOP(BaseGradientOP):
         Inherited from :class:`BaseGradientOP`. **Not used** by this operator.
     interior_points : {3, 5}, default=3
         Inherited from :class:`BaseGradientOP`. **Not used** by this operator.
-    eps_func : callable, default=`_unit_eps`
+    eps_func : callable
         Permittivity as a function of the electric field ``E``:
         ``ε = eps_func(E)`` where ``E`` has shape ``(N-1,)``.
         Defaults to ``ε = 1`` (constant, linear dielectric).
@@ -95,12 +54,12 @@ class FiniteVolumeOP(BaseGradientOP):
     Default (constant permittivity)::
 
         import jax.numpy as jnp
-        from fdm_edl.solver.grad import FiniteVolumeOP
+        from fdm_edl.solver.grad import EuclideanFVOp
 
         x = jnp.linspace(0.0, 1.0, 256)
         phi = jnp.sin(2 * jnp.pi * x)
 
-        op = FiniteVolumeOP()
+        op = EuclideanFVOp()
         grad, div_D = op(x, phi)
 
     Nonlinear permittivity::
@@ -108,11 +67,9 @@ class FiniteVolumeOP(BaseGradientOP):
         def my_eps(E):
             return 1.0 + 0.5 * (E / 1.0) ** 2
 
-        op = FiniteVolumeOP(eps_func=my_eps)
+        op = EuclideanFVOp(eps_func=my_eps)
         grad, div_D = jax.jit(op)(x, phi)
     """
-
-    # eps_func: Callable[[Array], Array] = _unit_eps
 
     def _div_D(self, x: Array, y: Array, grad: Array) -> Array:
         """
@@ -154,3 +111,34 @@ class FiniteVolumeOP(BaseGradientOP):
             [div_interior[:1], div_interior, div_interior[-1:]]
         )  # (N,)
         return div_dfield
+
+
+# ---------------------------------------------------------------------------
+# Private pure-JAX helpers (no Python loops; fully JIT-compatible)
+# ---------------------------------------------------------------------------
+
+
+def _faces_from_centers(x: Array) -> Array:
+    """
+    Compute face locations ``x_{i+1/2}`` from cell-centre positions ``x_i``.
+
+    Returns an array of shape ``(N+1,)`` for input of shape ``(N,)``.
+    Interior faces are midpoints of adjacent centres; boundary faces are
+    linearly extrapolated.
+    """
+    xf_int = 0.5 * (x[:-1] + x[1:])  # (N-1,)
+    xf_left = x[0] - 0.5 * (x[1] - x[0])
+    xf_right = x[-1] + 0.5 * (x[-1] - x[-2])
+    return jnp.concatenate([xf_left[None], xf_int, xf_right[None]])  # (N+1,)
+
+
+def _interpolate_faces_to_cells(G_face: Array) -> Array:
+    """
+    Average face-centred values ``G_{i+1/2}`` (shape ``(N-1,)``) to cell centres.
+
+    Returns shape ``(N,)``:
+    - Interior cells (1 .. N-2): arithmetic mean of the two neighbouring faces.
+    - Boundary cells (0, N-1): one-sided (nearest face value).
+    """
+    G_int = 0.5 * (G_face[:-1] + G_face[1:])  # (N-2,)
+    return jnp.concatenate([G_face[:1], G_int, G_face[-1:]])  # (N,)
