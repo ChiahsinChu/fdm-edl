@@ -62,6 +62,7 @@ class BaseIsotherm(ABC):
     def compute(
         self,
         phi: unxt.Quantity,
+        ignore_convergence_failure: bool = False,
         *,
         max_iter: int = 500,
         lr: float = 0.05,
@@ -97,6 +98,7 @@ class BaseIsotherm(ABC):
             all_theta = jnp.asarray(
                 self._compute(
                     float(all_phi),
+                    ignore_convergence_failure=ignore_convergence_failure,
                     max_iter=max_iter,
                     lr=lr,
                     tol=tol,
@@ -109,6 +111,7 @@ class BaseIsotherm(ABC):
             for _phi in all_phi:
                 theta = self._compute(
                     float(_phi),
+                    ignore_convergence_failure=ignore_convergence_failure,
                     max_iter=max_iter,
                     lr=lr,
                     tol=tol,
@@ -139,6 +142,7 @@ class BaseIsotherm(ABC):
     def _compute(
         self,
         _phi: float,
+        ignore_convergence_failure: bool,
         *,
         max_iter: int = 500,
         lr: float = 0.05,
@@ -206,6 +210,9 @@ class BaseIsotherm(ABC):
         x, opt_state, final_loss, _ = jax.lax.while_loop(
             cond, body, (x, opt_state, init_loss, 0)
         )
+        if (cond((x, opt_state, final_loss, -1))) and (not ignore_convergence_failure):
+            raise RuntimeError(f"Final residual: {jnp.sqrt(jnp.mean(final_loss ** 2))}")
+        print(f"Final residual: {jnp.sqrt(jnp.mean(final_loss ** 2))}")
 
         theta = x_to_theta(x)
         return theta
