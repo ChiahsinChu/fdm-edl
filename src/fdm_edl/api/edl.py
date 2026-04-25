@@ -399,11 +399,11 @@ class ElectricalDoubleLayer:
     def _validate_user_grad_op(self, grad_op: BaseGradientOP) -> None:
         solvent_type = self.electrolyte.solvent.type
 
-        # Enforce: for uniform solvent, do not allow EuclideanFDOp
-        if solvent_type == "uniform" and isinstance(grad_op, EuclideanFDOp):
+        # EuclideanFDOp and the derived class AxisymmetricFDOp are not allowed for non-uniform solvents
+        if solvent_type != "uniform" and ("FDOp" in type(grad_op).__name__):
             raise ValueError(
-                "Invalid grad_op for solvent type 'uniform': EuclideanFDOp is not allowed. "
-                "Use EuclideanFVOp (or pass a different BaseGradientOP)."
+                f"Invalid grad_op for solvent type '{solvent_type}': finite_difference is not allowed. "
+                "Use finite_volume (or pass a different BaseGradientOP)."
             )
 
     def _build_default_grad_op(self) -> BaseGradientOP:
