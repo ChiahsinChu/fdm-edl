@@ -212,7 +212,8 @@ class BaseIsotherm(ABC):
         )
         if (cond((x, opt_state, final_loss, -1))) and (not ignore_convergence_failure):
             raise RuntimeError(f"Final residual: {jnp.sqrt(jnp.mean(final_loss ** 2))}")
-        print(f"Final residual: {jnp.sqrt(jnp.mean(final_loss ** 2))}")
+        # print(_)
+        # print(f"Final residual: {jnp.sqrt(jnp.mean(final_loss ** 2))}")
 
         theta = x_to_theta(x)
         return theta
@@ -248,10 +249,20 @@ class BaseIsotherm(ABC):
             .value
         )
 
+        # Choose eps relative to theta_max scale; can be a parameter if you want.
+        eps = 1e-12
+
         def residual_fn(theta: float) -> float | jax.Array:
-            lhs = jnp.log(theta / (self.theta_max - theta)) + self.lateral_interaction(
-                theta
-            )
+            theta = jnp.asarray(theta)
+
+            # Work in normalized coverage y in (0, 1)
+            y = theta / self.theta_max
+            y = jnp.clip(y, eps, 1.0 - eps)
+
+            # stable log(y/(1-y)) = log(y) - log1p(-y)
+            log_term = jnp.log(y) - jnp.log1p(-y)
+
+            lhs = log_term + self.lateral_interaction(theta)
             rhs = -rhs_coeff * phi
             return lhs - rhs
 

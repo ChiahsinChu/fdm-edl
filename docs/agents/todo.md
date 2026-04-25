@@ -1,7 +1,7 @@
 ---
 status: draft
 author: Jia-Xin Zhu, AI Agent
-last_updated: 2026-04-23
+last_updated: 2026-04-25
 ---
 
 # Development Plans
@@ -14,6 +14,8 @@ last_updated: 2026-04-23
 - [x] SI-unit multi-ion Poisson-Boltzmann solver
 - [x] Solvent model framework (`BaseSolvent`) with pluggable dielectric response types
 - [x] Load parameters from `dict`, JSON, or YAML file
+- [x] Save parameters / output results to JSON or YAML via `save_dict` (`utils/io.py`)
+- [x] `serialize()`/`deserialize()` on `EDLStatus` and `IsothermStatus` for round-trip JSON/YAML persistence
 - [x] Electroneutrality check on electrolyte input
 - [x] Compute analytical properties (e.g., Debye length) without solving the full PDE
 - [x] Add physical units to output results and plots (e.g., via [`unxt`](https://github.com/GalacticDynamics/unxt))
@@ -66,9 +68,13 @@ last_updated: 2026-04-23
 
 ## Unit Tests
 
-- [ ] Add unit tests for the PBE residual and Newton solver
+- [ ] Add coverage-driven tests for PBE residual pathways (focus: `benchmark/pb1d.py`, uncovered branches at 60% coverage)
 - [x] Add numerical-consistency tests for gradient/Laplacian operators against JAX autodiff (`tests/test_grad.py`)
 - [ ] Add dedicated unit tests for `EuclideanFVOp` on nonuniform grids and nonlinear dielectric closures
+- [ ] Add operator regression tests for low-coverage coordinate operators: `op/cartesian/fd.py`, `op/cartesian/fv.py`, `op/axisymmetric/fd.py`, `op/axisymmetric/fv.py`
+- [ ] Add first-pass tests for currently untested modules: `_version.py`, `benchmark/base.py`, `benchmark/gcs1d.py`, `isotherm/base.py`, `isotherm/frumkin.py`, `isotherm/langmuir.py`, `utils/grad.py`
+- [ ] Add branch/validation tests for API and utility gaps: `api/bc.py`, `api/edl.py`, `utils/bc.py`, `utils/io.py`
+- [ ] Add model-behavior tests for `models/bikerman.py` and `models/solvent/base.py` edge cases
 
 ## Chores
 

@@ -1,10 +1,22 @@
 ---
 status: draft
 author: Jia-Xin Zhu, AI Agent
-last_updated: 2026-04-23
+last_updated: 2026-04-25
 ---
 
 # CHANGELOG
+
+## [Unreleased] - 2026-04-25
+
+### Added
+
+- `save_dict` in `src/fdm_edl/utils/io.py` for saving a parameter dict to JSON or YAML; exported from `src/fdm_edl/utils/__init__.py`
+- `serialize()` and `deserialize()` methods on `EDLStatus` and `IsothermStatus` in `src/fdm_edl/utils/output_def.py` for round-trip JSON/YAML persistence
+
+### Fixed
+
+- Numerical stability in `BaseIsotherm.residual_fn`: normalize coverage to `y = theta / theta_max`, clamp to `(eps, 1-eps)`, and evaluate `log(y) - log1p(-y)` to avoid overflow near the coverage boundaries
+- Removed stray debug `print` calls in `BaseIsotherm` optimization loop
 
 ## [Unreleased] - 2026-04-23
 

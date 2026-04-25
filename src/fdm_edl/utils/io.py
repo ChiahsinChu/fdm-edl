@@ -62,4 +62,45 @@ def load_dict(file_path: str | Path) -> dict[str, Any]:
     return data
 
 
-__all__ = ["load_dict"]
+def save_dict(data: dict[str, Any], file_path: str | Path) -> None:
+    """
+    Save a dictionary of model parameters to a JSON or YAML file.
+
+    Parameters
+    ----------
+    data : dict
+        Dictionary of model parameters to save.
+    file_path : str or pathlib.Path
+        Path to save the parameters. The extension determines the format:
+        - .json for JSON format
+        - .yml or .yaml for YAML format
+
+    Raises
+    ------
+    ValueError
+        If the file extension is not supported.
+    ImportError
+        If a YAML file is requested and *PyYAML* is not installed.
+    """
+    path = Path(file_path)
+    suffix = path.suffix.lower()
+
+    if suffix == ".json":
+        text = json.dumps(data, indent=4)
+    elif suffix in {".yml", ".yaml"}:
+        try:
+            import yaml
+        except ImportError as exc:
+            raise ImportError(
+                "YAML serialization requires PyYAML. Install it with `pip install pyyaml`."
+            ) from exc
+        text = yaml.safe_dump(data, sort_keys=False)
+    else:
+        raise ValueError(
+            f"Unsupported file extension '{suffix}'. Use .json, .yml, or .yaml."
+        )
+
+    path.write_text(text, encoding="utf-8")
+
+
+__all__ = ["load_dict", "save_dict"]

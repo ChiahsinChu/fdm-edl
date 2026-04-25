@@ -36,6 +36,30 @@ class EDLStatus:
         for conc in self.ion_conc.values():
             check_data_type(conc, "molar concentration")
 
+    def serialize(self) -> Dict[str, unxt.Quantity | Dict[str, unxt.Quantity]]:
+        return {
+            "coordinate": self.coordinate.value.tolist(),
+            "sigma": self.sigma.value.tolist(),
+            "phi": self.phi.value.tolist(),
+            "efield": self.efield.value.tolist() if self.efield is not None else None,
+            "rho": self.rho.value.tolist() if self.rho is not None else None,
+            "ion_conc": {
+                key: value.value.tolist() for key, value in self.ion_conc.items()
+            },
+        }
+
+    def deserialize(
+        data: Dict[str, unxt.Quantity | Dict[str, unxt.Quantity]],
+    ) -> EDLStatus:
+        return EDLStatus(
+            coordinate=data["coordinate"],
+            sigma=data["sigma"],
+            phi=data["phi"],
+            efield=data.get("efield"),
+            rho=data.get("rho"),
+            ion_conc=data["ion_conc"],
+        )
+
 
 @dataclass(frozen=True)
 class IsothermStatus:
@@ -52,3 +76,29 @@ class IsothermStatus:
         if self.lateral_interaction is not None:
             # energy per mol
             check_data_type(self.lateral_interaction, "chemical potential")
+
+    def serialize(self) -> Dict[str, unxt.Quantity | jax.Array | float]:
+        return {
+            "phi": self.phi.value.tolist(),
+            "coverage": self.coverage.tolist(),
+            "temperature": self.temperature.value.tolist(),
+            "n_et": self.n_et,
+            "coverage_max": self.coverage_max,
+            "lateral_interaction": (
+                self.lateral_interaction.value.tolist()
+                if self.lateral_interaction is not None
+                else None
+            ),
+        }
+
+    def deserialize(
+        data: Dict[str, unxt.Quantity | jax.Array | float],
+    ) -> IsothermStatus:
+        return IsothermStatus(
+            phi=data["phi"],
+            coverage=data["coverage"],
+            temperature=data["temperature"],
+            n_et=data["n_et"],
+            coverage_max=data.get("coverage_max", 1.0),
+            lateral_interaction=data.get("lateral_interaction"),
+        )
