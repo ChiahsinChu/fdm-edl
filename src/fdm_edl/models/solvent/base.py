@@ -66,7 +66,7 @@ class BaseSolvent(ABC):
             Relative permittivity ``epsilon_r`` (dimensionless).
         """
         x = efield.to(uc.UNIT_SYSTEMS["metal"]["electrical field strength"])
-        return self._compute_eps(x.value)
+        return self._compute_eps(jnp.abs(x.value))
 
     @abstractmethod
     def _compute_eps(self, efield: jax.Array) -> jax.Array:

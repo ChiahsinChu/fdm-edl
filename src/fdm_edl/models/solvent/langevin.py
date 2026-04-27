@@ -31,13 +31,34 @@ def langevin_function(x: jax.Array) -> jax.Array:
         near zero for numerical stability.
     """
 
+    # Use a polynomial near zero to avoid catastrophic cancellation in
+    # coth(x) - 1/x while preserving odd symmetry.
+    cutoff = 1e-3
+
     def small(_):
-        return x / 3 - x**3 / 45
+        x2 = x * x
+        return x * (1.0 / 3.0 - x2 / 45.0 + 2.0 * x2 * x2 / 945.0)
 
     def large(_):
         return 1.0 / jnp.tanh(x) - 1.0 / x
 
-    return jax.lax.cond(x < 1e-10, small, large, operand=None)
+    return jax.lax.cond(jnp.abs(x) < cutoff, small, large, operand=None)
+
+
+def langevin_over_x(x: jax.Array) -> jax.Array:
+    """Evaluate ``L(x) / x`` with a stable small-argument expansion."""
+
+    cutoff = 5e-2
+    x2 = x * x
+
+    def small(_):
+        # L(x)/x = 1/3 - x^2/45 + 2 x^4/945 + O(x^6)
+        return (1.0 / 3.0) - x2 / 45.0 + 2.0 * x2 * x2 / 945.0
+
+    def large(_):
+        return langevin_function(x) / x
+
+    return jax.lax.cond(jnp.abs(x) < cutoff, small, large, operand=None)
 
 
 def langevin_eps(
@@ -70,17 +91,16 @@ def langevin_eps(
     coeff_in = mu / (kB * temperature)
     coeff_out = (mu * n_density) / eps0
 
-    def _func(E):
-        return coeff_out / E * langevin_function(coeff_in * E)
+    x = coeff_in * efield
 
-    def small_field(_):
-        # constant in E => grad wrt E is exactly 0
-        return coeff_in * coeff_out / 3
+    def tiny_field(_):
+        # Exact E->0 limit; keeps grad exactly zero at effectively zero field.
+        return coeff_in * coeff_out / 3.0
 
-    def large_field(_):
-        return _func(efield)
+    def finite_field(_):
+        return coeff_in * coeff_out * langevin_over_x(x)
 
-    return jax.lax.cond(efield > 1e-3, large_field, small_field, operand=None)
+    return jax.lax.cond(jnp.abs(x) < 1e-6, tiny_field, finite_field, operand=None)
 
 
 class LangevinDielectrics(BaseSolvent):

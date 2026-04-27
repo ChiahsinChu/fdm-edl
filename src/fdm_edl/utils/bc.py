@@ -47,6 +47,7 @@ class BoundaryCondition:
     gamma: unxt.Quantity | float
     node_indices: jax.Array | Sequence[int]
     _is_dirichlet: bool = field(init=False, repr=False)
+    update_func: callable | None = field(default=None, repr=False)
 
     def __post_init__(self):
         indices = jnp.asarray(self.node_indices)
@@ -132,6 +133,19 @@ class BoundaryCondition:
         if self._is_dirichlet:
             phi = phi.at[self.node_indices].set(-self.gamma / self.alpha)
         return phi
+
+    def update_coefficients(self, **kwargs) -> None:
+        if self.update_func is not None:
+            alpha, beta, gamma = self.update_func(
+                self.alpha, self.beta, self.gamma, **kwargs
+            )
+            if alpha is not None:
+                object.__setattr__(self, "alpha", alpha)
+            if beta is not None:
+                object.__setattr__(self, "beta", beta)
+            if gamma is not None:
+                object.__setattr__(self, "gamma", gamma)
+            # print(self.alpha, self.beta, self.gamma)
 
     @property
     def is_dirichlet(self) -> bool:

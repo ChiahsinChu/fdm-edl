@@ -8,7 +8,7 @@ import unxt
 
 from ...utils import unit_conversion as uc
 from .base import BaseSolvent
-from .langevin import langevin_function
+from .langevin import langevin_over_x
 
 if TYPE_CHECKING:
     from ...api.edl import ElectricalDoubleLayer
@@ -38,20 +38,9 @@ def booth_eps(
     jax.Array
         Dimensionless dielectric contribution.
     """
-    coeff_in = 3 * (eps_0 - eps_opt) / booth_beta
-    coeff_out = booth_beta
-
-    def _func(E):
-        return coeff_out / E * langevin_function(coeff_in * E)
-
-    def small_field(_):
-        # constant in E => grad wrt E is exactly 0
-        return coeff_in * coeff_out / 3
-
-    def large_field(_):
-        return _func(efield)
-
-    return jax.lax.cond(efield > 1e-2, large_field, small_field, operand=None)
+    delta_eps = eps_0 - eps_opt
+    x = 3.0 * delta_eps * efield / booth_beta
+    return 3.0 * delta_eps * langevin_over_x(x)
 
 
 class BoothDielectrics(BaseSolvent):
@@ -122,7 +111,6 @@ class BoothDielectrics(BaseSolvent):
         jax.Array
             Relative permittivity including ``eps_inf``.
         """
-
         _efield = efield[None] if (efield.ndim == 0) else efield
 
         out = jax.vmap(booth_eps, in_axes=(0, None, None, None))(

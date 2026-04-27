@@ -73,6 +73,12 @@ class TestLangevinWaterEps(unittest.TestCase, WaterEpsTester):
         self.efields = unxt.Quantity(self._efields, "V/angstrom")
         self.eps = self.eps_obj.compute_eps(self.efields)
 
+    def test_no_small_field_overshoot_near_transition(self) -> None:
+        # Regression for numerical noise seen near ~1e-3 V/angstrom.
+        fields = unxt.Quantity(jnp.array([9e-4, 1e-3, 1.1e-3]), "V/angstrom")
+        eps_vals = self.eps_obj.compute_eps(fields)
+        self.assertTrue(jnp.all(eps_vals <= self.eps_obj.eps_0 + 1e-6))
+
 
 class TestBoothWaterEps(unittest.TestCase, WaterEpsTester):
     def setUp(self) -> None:
@@ -84,3 +90,9 @@ class TestBoothWaterEps(unittest.TestCase, WaterEpsTester):
         self._efields = jnp.logspace(-10, 10, 10)
         self.efields = unxt.Quantity(self._efields, "V/angstrom")
         self.eps = self.eps_obj.compute_eps(self.efields)
+
+    def test_no_small_field_overshoot_near_transition(self) -> None:
+        # Regression for numerical noise seen near ~1e-2 V/angstrom.
+        fields = unxt.Quantity(jnp.array([0.009, 0.010, 0.011]), "V/angstrom")
+        eps_vals = self.eps_obj.compute_eps(fields)
+        self.assertTrue(jnp.all(eps_vals <= self.eps_obj.eps_0 + 1e-6))

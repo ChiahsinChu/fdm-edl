@@ -305,15 +305,15 @@ class ElectricalDoubleLayer:
         )
         rho_ion = charge_density_profile(ion_conc)
         # calculate sigma from E-field at the electrode surface
+        # use eps(E_OHP) rather than eps_0!
+        eps_r = self.electrolyte.solvent.compute_eps(efield)
         self.result = EDLStatus(
             coordinate=coordinates,
             sigma=cast(
                 unxt.Quantity,
-                (
-                    self.electrolyte.solvent.eps_0
-                    * constants.VACUUM_PERMITTIVITY
-                    * efield[0]
-                ).to(uc.UNIT_SYSTEMS[self._unit_system]["surface charge density"]),
+                (eps_r[0] * constants.VACUUM_PERMITTIVITY * efield[0]).to(
+                    uc.UNIT_SYSTEMS[self._unit_system]["surface charge density"]
+                ),
             ),
             phi=cast(
                 unxt.Quantity,
@@ -330,6 +330,7 @@ class ElectricalDoubleLayer:
                 ),
             ),
             ion_conc=ion_conc,
+            epsilon_r=eps_r,
         )
 
     def compute_residual(
@@ -379,6 +380,9 @@ class ElectricalDoubleLayer:
 
         # --- Apply boundary conditions -----------
         for bc in boundary_conditions:
+            bc.update_coefficients(
+                eps_r=self.electrolyte.solvent._compute_eps(jnp.abs(g_phi[0])),
+            )
             residual = bc.update_residual(residual, phi, g_phi)
 
         return residual

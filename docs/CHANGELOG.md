@@ -1,22 +1,32 @@
 ---
 status: draft
 author: Jia-Xin Zhu, AI Agent
-last_updated: 2026-04-25
+last_updated: 2026-04-27
 ---
 
 # CHANGELOG
 
-## [Unreleased] - 2026-04-25
+## [Unreleased] - 2026-04-27
 
 ### Added
 
 - `save_dict` in `src/fdm_edl/utils/io.py` for saving a parameter dict to JSON or YAML; exported from `src/fdm_edl/utils/__init__.py`
 - `serialize()` and `deserialize()` methods on `EDLStatus` and `IsothermStatus` in `src/fdm_edl/utils/output_def.py` for round-trip JSON/YAML persistence
+- `epsilon_r` on `EDLStatus`, including serialization support, so solved dielectric profiles can be persisted with the electrostatic solution
+
+### Changed
+
+- `ElectricalDoubleLayer` now recomputes electrode boundary-condition coefficients from the local field-dependent dielectric response before each residual evaluation
+- Surface charge output in `ElectricalDoubleLayer` is now derived from the interfacial dielectric response `eps(E_OHP)` instead of the bulk-water permittivity constant
+- Solvent permittivity evaluation now uses `|E|` consistently so Booth and Langevin dielectric models remain even in field direction
+- Booth and Langevin dielectric closures now share a stable `L(x) / x` evaluation path to improve behavior across the small-field transition
 
 ### Fixed
 
 - Numerical stability in `BaseIsotherm.residual_fn`: normalize coverage to `y = theta / theta_max`, clamp to `(eps, 1-eps)`, and evaluate `log(y) - log1p(-y)` to avoid overflow near the coverage boundaries
 - Removed stray debug `print` calls in `BaseIsotherm` optimization loop
+- Removed small-field dielectric overshoot in Booth and Langevin solvent models by replacing cancellation-prone formulas with polynomial limits near zero field
+- Added regression coverage in `tests/test_water_eps.py` for dielectric-response transition regions where the overshoot had been observed
 
 ## [Unreleased] - 2026-04-23
 

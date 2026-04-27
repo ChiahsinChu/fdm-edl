@@ -14,7 +14,7 @@ from abc import ABC, abstractmethod
 
 from ..utils import constants
 from ..utils.bc import BoundaryCondition
-from ..utils.unit_conversion import check_data_type
+from ..utils.unit_conversion import UNIT_SYSTEMS, check_data_type
 
 CoeffTuple = tuple[
     unxt.Quantity | float,
@@ -32,6 +32,7 @@ class TemplateBC(ABC):
     """
 
     def __init__(self, **kwargs):
+        self.update_func = kwargs.pop("update_func", None)
         self.coeff = self.make_coeff(**kwargs)
 
     @abstractmethod
@@ -59,6 +60,7 @@ class TemplateBC(ABC):
                 self.coeff[1],
                 self.coeff[2],
                 node_indices,
+                self.update_func,
             ),
         )
 
@@ -102,8 +104,20 @@ class ConstQ(TemplateBC):
         corresponds to bulk water at room temperature.
     """
 
-    def __init__(self, sigma: unxt.Quantity, eps_r: float = 78.5):
-        super().__init__(sigma=sigma, eps_r=eps_r)
+    def __init__(
+        self,
+        sigma: unxt.Quantity,
+        eps_r: float = 78.5,
+    ):
+        def update_func(alpha, beta, gamma, eps_r):
+            new_gamma = -sigma / (constants.VACUUM_PERMITTIVITY * eps_r)
+            return (
+                None,
+                None,
+                new_gamma.to(UNIT_SYSTEMS["metal"]["electrical potential"]).value,
+            )
+
+        super().__init__(sigma=sigma, eps_r=eps_r, update_func=update_func)
 
     def make_coeff(self, **kwargs: Any) -> CoeffTuple:
         sigma = cast(unxt.Quantity, kwargs["sigma"])
@@ -154,11 +168,17 @@ class Stern(TemplateBC):
         eps_s: float,
         d_s: unxt.Quantity,
     ):
+        def update_func(alpha, beta, gamma, eps_r):
+            coeff_s = d_s.to(UNIT_SYSTEMS["metal"]["length"]).value / eps_s
+            new_beta = -eps_r * coeff_s
+            return None, new_beta, None
+
         super().__init__(
             phi=phi,
             eps_gc=eps_gc,
             eps_s=eps_s,
             d_s=d_s,
+            update_func=update_func,
         )
 
     def make_coeff(self, **kwargs: Any) -> CoeffTuple:

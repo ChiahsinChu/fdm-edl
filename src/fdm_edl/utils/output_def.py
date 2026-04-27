@@ -24,6 +24,7 @@ class EDLStatus:
     efield: unxt.Quantity | None
     rho: unxt.Quantity | None
     ion_conc: Dict[str, unxt.Quantity]
+    epsilon_r: jax.Array | None = None
 
     def __post_init__(self):
         check_data_type(self.coordinate, "length")
@@ -46,6 +47,9 @@ class EDLStatus:
             "ion_conc": {
                 key: value.value.tolist() for key, value in self.ion_conc.items()
             },
+            "epsilon_r": (
+                self.epsilon_r.tolist() if self.epsilon_r is not None else None
+            ),
         }
 
     def deserialize(
@@ -58,6 +62,7 @@ class EDLStatus:
             efield=data.get("efield"),
             rho=data.get("rho"),
             ion_conc=data["ion_conc"],
+            epsilon_r=data.get("epsilon_r"),
         )
 
 

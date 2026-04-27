@@ -95,11 +95,8 @@ class Electrolyte:
     ions: Dict[str, Ion]
     solvent: BaseSolvent
     temperature: unxt.Quantity
-    # epsilon: unxt.Quantity
-    # epsilon_r: float = 78.5
     electroneutrality: bool = True
     _temperature: float = field(init=False, repr=False)
-    # _epsilon: float = field(init=False, repr=False)
 
     def __post_init__(self):
         """Validate electrolyte consistency after dataclass initialization.

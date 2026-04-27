@@ -1,7 +1,7 @@
 ---
 status: draft
 author: Jia-Xin Zhu, AI Agent
-last_updated: 2026-04-25
+last_updated: 2026-04-27
 ---
 
 # Development Plans
@@ -28,12 +28,14 @@ last_updated: 2026-04-25
 - [x] Add solvent response (Booth)
 - [x] Add solvent response (Langevin)
 - [x] Bikerman model with single cation/anion types
+- [x] Stabilize Booth/Langevin dielectric response near zero field and enforce even response with respect to field sign
 
 ### Boundary conditions
 
 - [ ] multi chemisorption equilibrium
 - [x] single chemisorption (Frumkin isotherm, known: lateral coefficient & potential)
 - [x] Add safer BC residual application and public Dirichlet accessor (`is_dirichlet`)
+- [x] Update field-dependent boundary-condition coefficients from the local solvent permittivity during residual evaluation
 
 ### Optimizer
 
@@ -70,6 +72,7 @@ last_updated: 2026-04-25
 
 - [ ] Add coverage-driven tests for PBE residual pathways (focus: `benchmark/pb1d.py`, uncovered branches at 60% coverage)
 - [x] Add numerical-consistency tests for gradient/Laplacian operators against JAX autodiff (`tests/test_grad.py`)
+- [x] Add dielectric-response regression tests around the small-field transition for Booth and Langevin water models (`tests/test_water_eps.py`)
 - [ ] Add dedicated unit tests for `EuclideanFVOp` on nonuniform grids and nonlinear dielectric closures
 - [ ] Add operator regression tests for low-coverage coordinate operators: `op/cartesian/fd.py`, `op/cartesian/fv.py`, `op/axisymmetric/fd.py`, `op/axisymmetric/fv.py`
 - [ ] Add first-pass tests for currently untested modules: `_version.py`, `benchmark/base.py`, `benchmark/gcs1d.py`, `isotherm/base.py`, `isotherm/frumkin.py`, `isotherm/langmuir.py`, `utils/grad.py`
