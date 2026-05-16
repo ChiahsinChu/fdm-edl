@@ -8,7 +8,7 @@ from jax import numpy as jnp
 
 from fdm_edl.api import ElectricalDoubleLayer
 from fdm_edl.benchmark.pb1d import NonLinearPoissonBoltzmann
-from fdm_edl.op.cartesian.fd import EuclideanFDOp
+from fdm_edl.op import EuclideanFDOp, EuclideanFVOp
 
 
 class GradientOpTester:
@@ -62,6 +62,35 @@ class TestEuclideanFDOp(unittest.TestCase, GradientOpTester):
         self.x = unxt.Quantity(jnp.linspace(0, 50.0, 500), unit="angstrom")
         self._func = _func
         self.grad_op = EuclideanFDOp()
+
+
+class TestEuclideanFVOp(unittest.TestCase, GradientOpTester):
+    def setUp(self) -> None:
+        example_input = Path(__file__).resolve().parent / "data" / "CaSO4.json"
+        edl_obj = ElectricalDoubleLayer(example_input)
+        non_linear_pb = NonLinearPoissonBoltzmann(edl_obj=edl_obj)
+
+        phi_0 = unxt.Quantity(0.025, "V")
+        debye_length = non_linear_pb.edl_obj.electrolyte.debye_length.to("angstrom")
+        beta = non_linear_pb.beta
+
+        def _func(x):
+            return non_linear_pb.compute_phi(
+                x,
+                phi_0,
+                debye_length,
+                beta,
+                non_linear_pb.valency,
+            ).value
+
+        self.x = unxt.Quantity(jnp.linspace(0, 50.0, 500), unit="angstrom")
+        self._func = _func
+
+        def eps_func(coord):
+            return 1.0 + jax.nn.sigmoid(coord) * 78.4
+
+        # use position-dependent permittivity to test eps_func handling in FV operator
+        self.grad_op = EuclideanFVOp(eps_func=eps_func)
 
 
 # class TestCylindricalGradientOps(unittest.TestCase):

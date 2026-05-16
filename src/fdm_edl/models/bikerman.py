@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import unxt
 from jax import numpy as jnp
+from jax.scipy.special import logsumexp
 
 from ..utils import constants
 from .base import ChargeModel, boltzmann_factor, register
@@ -72,21 +73,45 @@ class BikermanModel(ChargeModel):
         """
         # beta: (eV)^(-1)
         beta = 1.0 / (constants.BOLTZMANN_CONSTANT.to("eV / K").value * temperature)
-        # rho_ion: e / angstrom^3
-        rho_ion = jnp.zeros_like(phi)
-        sfactor = 1.0
-        for ion in electrolyte.ions.values():
-            z_i = ion._charge
-            rho_ion += (
-                z_i
-                * constants.AVOGADRO_NUMBER.value
-                * ion._molar_conc
-                * jnp.exp(-z_i * phi * beta)
-            )
-            sfactor += (
-                ion._molar_conc * ion._molar_volume * (jnp.exp(-z_i * phi * beta) - 1.0)
-            )
-        return rho_ion / sfactor
+
+        ions = list(electrolyte.ions.values())
+        z = jnp.asarray([ion._charge for ion in ions])  # (n_ions,)
+        c = jnp.asarray([ion._molar_conc for ion in ions])  # (n_ions,)
+        v = jnp.asarray([ion._molar_volume for ion in ions])  # (n_ions,)
+
+        # x: (n_ions, *phi.shape)
+        x = -z[:, None] * phi[None, ...] * beta
+        a = c * v  # (n_ions,)
+
+        # ---- numerator: sum_i (NA * c_i * z_i * exp(x_i)) ----
+        # We must handle sign because z_i can be negative.
+        w = constants.AVOGADRO_NUMBER.value * c * z  # (n_ions,)
+        w_abs = jnp.abs(w)
+        w_sign = jnp.sign(w)
+
+        # log(|w_i| * exp(x_i)) = log|w_i| + x_i
+        # Use -inf for zero weights to avoid nan in log.
+        log_w_abs = jnp.where(w_abs > 0, jnp.log(w_abs), -jnp.inf)[:, None]
+        t_num = log_w_abs + x
+
+        # signed sum: sum_i sign_i * exp(t_num_i)
+        tmax = jnp.max(t_num, axis=0)
+        num = jnp.exp(tmax) * jnp.sum(w_sign[:, None] * jnp.exp(t_num - tmax), axis=0)
+
+        # ---- denominator: s = 1 - sum(a) + sum_i (a_i * exp(x_i)) ----
+        # Compute Sexp = sum_i a_i * exp(x_i) stably in log-space:
+        log_a = jnp.where(a > 0, jnp.log(a), -jnp.inf)[:, None]
+        log_Sexp = logsumexp(log_a + x, axis=0)  # log(sum_i a_i exp(x_i))
+        Sexp = jnp.exp(log_Sexp)
+
+        a_sum = jnp.sum(a)
+        s = (1.0 - a_sum) + Sexp
+
+        # Optional safety: if numerical noise makes s <= 0, clamp.
+        # Physically s should be > 0 for valid parameters.
+        s = jnp.maximum(s, jnp.finfo(phi.dtype).tiny)
+
+        return num / s
 
     def ion_concentration_profile(
         self,
@@ -130,4 +155,13 @@ class BikermanModel(ChargeModel):
             sfactor += (ion.molar_conc * ion.molar_volume).to("") * (
                 boltzmann_factor(phi, temperature, ion.charge) - 1.0
             )
+        # Ensure sfactor stays positive to avoid NaN from division
+        # Clamp to small positive value when steric effects cause sfactor to approach zero
+        if isinstance(sfactor, unxt.Quantity):
+            sfactor = unxt.Quantity(
+                jnp.maximum(sfactor.value, jnp.finfo(sfactor.value.dtype).tiny),
+                sfactor.unit,
+            )
+        else:
+            sfactor = jnp.maximum(jnp.asarray(sfactor), 1e-10)
         return {name: conc / sfactor for name, conc in boltzmann_conc.items()}

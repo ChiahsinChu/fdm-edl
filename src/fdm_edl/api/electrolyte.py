@@ -114,9 +114,9 @@ class Electrolyte:
                 q = ion.charge.value
                 c = ion.molar_conc.value
                 tot_charge += q * c
-            if self.electroneutrality and tot_charge != 0.0:
+            if self.electroneutrality and jnp.abs(tot_charge) >= 1e-8:
                 raise ValueError(
-                    f"Electroneutrality condition not satisfied. Total charge concentration: {tot_charge} {self.ions[0].charge.unit * self.ions[0].molar_conc.unit}"
+                    f"Electroneutrality condition not satisfied. Total charge concentration: {tot_charge} {ion.charge.unit * ion.molar_conc.unit}"
                 )
 
         object.__setattr__(

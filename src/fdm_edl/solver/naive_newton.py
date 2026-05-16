@@ -91,29 +91,61 @@ class NewtonSolver(BaseSolver, methods=("newton",)):
         # only `phi` is a traced dynamic argument.
         # @jax.jit
         def _solve(phi):
+            def _clamp_dirichlet_nodes(phi_vec):
+                for bc in boundary_conditions:
+                    if bc.is_dirichlet:
+                        phi_vec = bc.clamp_dirichlet(phi_vec)
+                return phi_vec
+
+            def _residual_norm(res):
+                return jnp.mean(jnp.square(res))
+
             def cond_fn(state):
                 _, converged, n_iter = state
                 return jnp.logical_and(~converged, n_iter < max_iter)
 
             def body_fn(state):
                 phi, _, n_iter = state
-                for bc in boundary_conditions:
-                    if bc.is_dirichlet:
-                        phi = bc.clamp_dirichlet(phi)
+                phi = _clamp_dirichlet_nodes(phi)
                 res = residual_fn(phi, boundary_conditions, *args)
+                res_norm = _residual_norm(res)
                 jac = jax.jacobian(residual_fn)(phi, boundary_conditions, *args)
-                step = jnp.linalg.solve(jac, -res)
-                phi = phi + step.reshape(phi.shape)
-                step_norm = jnp.mean(jnp.square(step))
+                step = jnp.linalg.solve(jac, -res).reshape(phi.shape)
+
+                # Backtracking line search to reduce divergence/non-finite updates.
+                def ls_body(_, ls_state):
+                    alpha, best_phi, best_norm, accepted = ls_state
+                    cand_phi = _clamp_dirichlet_nodes(phi + alpha * step)
+                    cand_res = residual_fn(cand_phi, boundary_conditions, *args)
+                    cand_norm = _residual_norm(cand_res)
+                    cand_finite = jnp.logical_and(
+                        jnp.all(jnp.isfinite(cand_phi)),
+                        jnp.all(jnp.isfinite(cand_res)),
+                    )
+                    improved = jnp.logical_and(cand_finite, cand_norm < best_norm)
+                    best_phi = jnp.where(improved, cand_phi, best_phi)
+                    best_norm = jnp.where(improved, cand_norm, best_norm)
+                    accepted = jnp.logical_or(accepted, improved)
+                    return (alpha * 0.5, best_phi, best_norm, accepted)
+
+                ls_init = (
+                    jnp.asarray(1.0, dtype=phi.dtype),
+                    phi,
+                    res_norm,
+                    jnp.bool_(False),
+                )
+                _, ls_phi, ls_norm, accepted = jax.lax.fori_loop(0, 8, ls_body, ls_init)
+
+                full_phi = _clamp_dirichlet_nodes(phi + step)
+                phi_next = jnp.where(accepted, ls_phi, full_phi)
+                step_norm = jnp.mean(jnp.square(phi_next - phi))
                 converged = step_norm < tol
-                return (phi, converged, n_iter + 1)
+                return (phi_next, converged, n_iter + 1)
 
             init_state = (phi, jnp.bool_(False), jnp.int32(0))
             phi, converged, n_iter = jax.lax.while_loop(cond_fn, body_fn, init_state)
             # clamp once more after the final step update
-            for bc in boundary_conditions:
-                if bc.is_dirichlet:
-                    phi = bc.clamp_dirichlet(phi)
+            phi = _clamp_dirichlet_nodes(phi)
             # Cut gradients: differentiating through the Newton loop is
             # not useful and would checkpoint every iteration's Jacobian.
             phi = jax.lax.stop_gradient(phi)
