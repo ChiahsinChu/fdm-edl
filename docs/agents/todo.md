@@ -42,6 +42,7 @@ last_updated: 2026-05-17
 - [ ] Add general interfaces to optax
 - [x] Refactor Newton solver into `solver/newton.py` with configurable backtracking (`alpha`, `max_iter_ls`) and multi-criterion tolerances
 - [x] Extend `BaseSolver`/`RootSolveResult` to carry residual auxiliary diagnostics (`gradient`, `source`) and shared convergence helpers
+- [x] Add matrix-free Krylov solver options (`bicgstab`, `cg`, `gmres`) in `solver/scipy.py` and export them through `solver/__init__.py`
 
 ### 2D/3D FEM
 
@@ -75,6 +76,7 @@ last_updated: 2026-05-17
 
 - [ ] Add coverage-driven tests for PBE residual pathways (focus: `benchmark/pb1d.py`, uncovered branches at 60% coverage)
 - [ ] Add targeted regression tests for new solver stopping criteria (`atol_*`/`rtol_*`) and auxiliary residual outputs
+- [x] Add cross-solver numerical consistency tests for `newton`/`bicgstab`/`cg`/`gmres` against the nonlinear PB benchmark (`tests/test_solver.py`)
 - [x] Add numerical-consistency tests for gradient/Laplacian operators against JAX autodiff (`tests/test_grad.py`)
 - [x] Add dielectric-response regression tests around the small-field transition for Booth and Langevin water models (`tests/test_water_eps.py`)
 - [ ] Add dedicated unit tests for `EuclideanFVOp` on nonuniform grids and nonlinear dielectric closures
@@ -87,4 +89,3 @@ last_updated: 2026-05-17
 
 - [ ] Check GPU compatibility for JAX solver
 - [x] Set up CI from GitHub workflow files (https://docs.gitlab.com/ci/migration/github_actions/)
-

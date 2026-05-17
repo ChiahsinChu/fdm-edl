@@ -3,10 +3,12 @@
 
 from .base import BaseSolver
 from .newton import NewtonSolver
-from .tmp import BiCGStabSolver
+from .scipy import BiCGStabSolver, CGSolver, GMRESSolver
 
 __all__ = [
     "BaseSolver",
     "NewtonSolver",
     "BiCGStabSolver",
+    "CGSolver",
+    "GMRESSolver",
 ]

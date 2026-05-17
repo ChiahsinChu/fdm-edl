@@ -12,7 +12,8 @@ last_updated: 2026-05-17
 
 - New solver diagnostics in `RootSolveResult` (`gradient`, `source`) in `src/fdm_edl/solver/base.py`
 - New `src/fdm_edl/solver/newton.py` implementation with configurable backtracking line search (`alpha`, `max_iter_ls`) and multi-criterion convergence controls (`atol_*`, `rtol_*`)
-- `BiCGStabSolver` export in `src/fdm_edl/solver/__init__.py`
+- New matrix-free Krylov linear solver module `src/fdm_edl/solver/scipy.py` with `BiCGStabSolver`, `CGSolver`, and `GMRESSolver` implementations using `jax.scipy.sparse.linalg`
+- New solver-regression coverage in `tests/test_solver.py` to validate Newton/BiCGStab/CG/GMRES consistency against the nonlinear Poisson-Boltzmann benchmark
 
 ### Changed
 
@@ -20,6 +21,7 @@ last_updated: 2026-05-17
 - `ElectricalDoubleLayer._loss()` now returns residual plus auxiliary fields (`grad(phi)`, `div_D`, `rho_ion`) so solvers can use richer convergence diagnostics
 - `ElectricalDoubleLayer` now converts solver absolute tolerances from the configured unit system into internal metal units before solver construction
 - Legacy Newton module `src/fdm_edl/solver/naive_newton.py` replaced by `src/fdm_edl/solver/newton.py`, and solver imports updated accordingly
+- Solver exports in `src/fdm_edl/solver/__init__.py` now import Krylov implementations from `scipy.py` (`BiCGStabSolver`, `CGSolver`, `GMRESSolver`) instead of the temporary module path
 - Solver fixtures in `tests/data/*.json` migrated from `tol` to the new tolerance keys (`atol_var`, with `method`/`atol_res` where needed)
 - `serialize()` on `EDLStatus` and `IsothermStatus` now returns structured dataclass fields directly; serialization helper utilities were extended in `src/fdm_edl/utils/output_def.py`
 
