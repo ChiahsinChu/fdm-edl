@@ -14,6 +14,10 @@ last_updated: 2026-05-17
 - New `src/fdm_edl/solver/newton.py` implementation with configurable backtracking line search (`alpha`, `max_iter_ls`) and multi-criterion convergence controls (`atol_*`, `rtol_*`)
 - New matrix-free Krylov linear solver module `src/fdm_edl/solver/scipy.py` with `BiCGStabSolver`, `CGSolver`, and `GMRESSolver` implementations using `jax.scipy.sparse.linalg`
 - New solver-regression coverage in `tests/test_solver.py` to validate Newton/BiCGStab/CG/GMRES consistency against the nonlinear Poisson-Boltzmann benchmark
+- VitePress docs scaffold via `docs/.vitepress/config.mts` and npm scripts in `package.json` (`docs:dev`, `docs:build`, `docs:preview`)
+- `docs/generate_api_docs.py` to generate pdoc HTML API pages into `docs/public/api/`
+- Static API pages under `docs/public/api/` and VitePress reference entry pages (`docs/reference/index.md`, `docs/reference/fdm_edl.md`)
+- New Bikerman example assets in `examples/01.bikerman/` (`input_booth.json`, `input_uniform.json`, `run.py`, `run.ipynb`, `booth.txt`, `uniform.txt`)
 
 ### Changed
 
@@ -25,10 +29,17 @@ last_updated: 2026-05-17
 - Solver exports in `src/fdm_edl/solver/__init__.py` now import Krylov implementations from `scipy.py` (`BiCGStabSolver`, `CGSolver`, `GMRESSolver`) instead of the temporary module path
 - Solver fixtures in `tests/data/*.json` migrated from `tol` to the new tolerance keys (`atol_var`, with `method`/`atol_res` where needed)
 - `serialize()` on `EDLStatus` and `IsothermStatus` now returns structured dataclass fields directly; serialization helper utilities were extended in `src/fdm_edl/utils/output_def.py`
+- README was rewritten to reflect the current public API, solver/model options, and parameter schema
+- `docs/index.md` now includes README content directly for single-source documentation
 
 ### Fixed
 
 - Type signatures now consistently describe residual functions with auxiliary outputs across API and solver modules, improving static typing for Newton/JAX Jacobian calls
+
+### Removed
+
+- Legacy MkDocs configuration `mkdocs.yml`
+- Legacy reference generator `docs/gen_reference.py`
 
 ## [Unreleased] - 2026-04-27
 

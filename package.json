@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "docs:api": "python docs/generate_api_docs.py",
+    "docs:dev": "npm run docs:api && vitepress dev docs",
+    "docs:build": "npm run docs:api && vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.0"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "unit": "metal",
+  "temperature": 298.15,
+  "electrode": {},
+  "electrolyte": {
+    "solvent": {
+      "type": "uniform"
+    },
+    "ions": {
+      "Na": {
+        "molar_conc": 0.01,
+        "charge": 1.0,
+        "radius": 3.6
+      },
+      "Cl": {
+        "molar_conc": 0.01,
+        "charge": -1.0,
+        "radius": 3.3
+      }
+    }
+  },
+  "model": {
+    "type": "bikerman"
+  },
+  "solver": {
+    "max_iter": 500,
+    "tol": 1e-6
+  },
+  "grad_op": {
+    "type": "finite_volume",
+    "coordinate_system": "cartesian"
+  }
+}

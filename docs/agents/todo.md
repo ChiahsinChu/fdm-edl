@@ -41,6 +41,7 @@ last_updated: 2026-05-17
 
 - [ ] Add non-linear solvers from [PETSC](https://petsc.org/release/manual/snes/#).
 - [ ] Add root-finding solvers from [optimistix](https://docs.kidger.site/optimistix/api/root_find/)
+- [ ] Add [BVP solver](https://gist.github.com/RicardoDominguez/f013d21a5991e863ffcf9076f5b9b34d)
 - [x] Refactor Newton solver into `solver/newton.py` with configurable backtracking (`alpha`, `max_iter_ls`) and multi-criterion tolerances
 - [x] Extend `BaseSolver`/`RootSolveResult` to carry residual auxiliary diagnostics (`gradient`, `source`) and shared convergence helpers
 - [x] Add matrix-free Krylov solver options (`bicgstab`, `cg`, `gmres`) in `solver/scipy.py` and export them through `solver/__init__.py`
@@ -68,7 +69,9 @@ last_updated: 2026-05-17
 
 ## Documentation
 
-- [ ] Use [vitepress](https://vitepress.dev/guide/what-is-vitepress) for documentation
+- [x] Use [vitepress](https://vitepress.dev/guide/what-is-vitepress) for documentation
+- [x] Add pdoc-based API generation script (`docs/generate_api_docs.py`) and publish static API pages under `docs/public/api`
+- [x] Add VitePress reference entry pages (`docs/reference/index.md`, `docs/reference/fdm_edl.md`) to route API navigation
 - [x] Add usage example notebook for 1D EDL (extend `examples/00.1d_edl/run.ipynb`)
 - [x] Add API docstrings to `ElectricalDoubleLayer`, `Electrode`, `Electrolyte`, `Solver`
 - [x] Add API docstrings to isotherm module (`BaseIsotherm`, `LangmuirIsotherm`, `FrumkinIsotherm`)

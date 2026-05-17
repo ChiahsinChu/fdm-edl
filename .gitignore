@@ -219,3 +219,7 @@ __marimo__/
 .DS_Store
 
 _version.py
+
+cache
+package-lock.json
+node_modules/

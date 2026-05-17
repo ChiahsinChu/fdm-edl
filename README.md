@@ -1,118 +1,205 @@
 # FDM-EDL
 
-A Python package for solving the Poisson-Boltzmann equation in electrical double layers (EDLs) using the finite difference method (FDM). Built on [JAX](https://github.com/jax-ml/jax) for automatic differentiation and GPU acceleration, with full SI-unit support via [unxt](https://github.com/GalacticDynamics/unxt).
+Finite-difference electrical double layer simulations with JAX and unit-aware inputs.
+
+`fdm_edl` solves continuum electrical double layer models from JSON/YAML-style parameter sets or Python dictionaries. The current package is focused on 1D problems, with modular charge-density models, dielectric-response models, boundary conditions, and nonlinear solvers.
+
+## Current Scope
+
+- 1D EDL solves through `fdm_edl.api.ElectricalDoubleLayer`
+- JAX-backed residual evaluation and nonlinear solves
+- Unit-aware inputs and outputs via `unxt.Quantity`
+- Configurable electrolyte, solvent, charge model, solver, and gradient operator
+- Analytical benchmark models for Gouy-Chapman-Stern and Poisson-Boltzmann cases
 
 ## Features
 
-- **Poisson-Boltzmann solver** for 1D EDL simulations with multi-ion electrolytes
-- **JAX-based numerics** — autodiff Jacobians and potential GPU acceleration
-- **SI units throughout** using `unxt.Quantity` for dimensional consistency
-- **Flexible boundary conditions** — Dirichlet, Neumann, Robin, and Periodic BCs
-- **Multiple solvers** — Newton's method (JAX autodiff Jacobian) and Optax gradient-based optimizers (Adam, SGD, RMSProp)
-- **Nonuniform grid support** — 1D Laplacian operator handles variable node spacing
-- **Analytical benchmarks** — built-in linear and non-linear PB solutions for validation
-- **JSON/YAML configuration** — define electrolyte composition and solver settings in a config file
+- Charge models: `boltzmann`, `bikerman`
+- Solvent dielectric models: `uniform`, `langevin`, `booth`
+- Boundary conditions: `ConstP`, `ConstQ`, `Symmetric`, `Stern`
+- Solver methods: `newton`, `bicgstab`, `cg`, `gmres`
+- Gradient operators:
+  - `finite_difference` or `finite_volume`
+  - `cartesian` or `axisymmetric`
+- Built-in benchmarks: `LinearPoissonBoltzmann`, `NonLinearPoissonBoltzmann`, `GCSModel`
+- Input loading from Python dictionaries, JSON, and YAML files
 
 ## Installation
 
-Requires Python ≥ 3.11.
+Requires Python 3.11 to 3.13.
 
 ```bash
 conda create -n fdm-edl python=3.11 -y
 conda activate fdm-edl
 
-git clone https://jugit.fz-juelich.de/ZhuJia-Xin/fdm-edl.git
+git clone https://github.com/ChiahsinChu/fdm-edl.git
 cd fdm-edl
 pip install .
 ```
 
-For development (tests + docs):
+Development install:
 
 ```bash
 pip install -e ".[test,docs]"
 ```
 
+If you want to load YAML parameter files, ensure `PyYAML` is installed in your environment.
+
 ## Quick Start
 
 ```python
-from fdm_edl.edl import ElectricalDoubleLayer
-from fdm_edl.bc import DirichletBC
+from jax import numpy as jnp
 import unxt
-import quaxed.numpy as jnp
 
-# 1. Initialize system from a JSON config
-edl = ElectricalDoubleLayer("input.json")
+from fdm_edl.api import ConstP, ElectricalDoubleLayer
 
-# 2. Create a 1D grid
+params = {
+    "unit": "metal",
+    "temperature": 298.15,
+    "electrolyte": {
+        "ions": {
+            "Na": {"molar_conc": 0.01, "charge": 1.0},
+            "Cl": {"molar_conc": 0.01, "charge": -1.0},
+        },
+    },
+    "model": {"type": "boltzmann"},
+    "solver": {"method": "newton", "max_iter": 500, "atol_var": 1e-6},
+}
+
+edl = ElectricalDoubleLayer(params)
+debye_length = edl.electrolyte.debye_length
+
 n_grid = 500
-x = unxt.Quantity(jnp.linspace(0, 50, n_grid), "nm")
+x = unxt.Quantity(
+    jnp.linspace(0.0, debye_length.to("nm").value * 10.0, n_grid),
+    unit="nm",
+)
 
-# 3. Define boundary conditions
-bcs = [
-    DirichletBC([0], unxt.Quantity(0.1, "V")),  # electrode potential
-    DirichletBC([n_grid - 1], unxt.Quantity(0.0, "V")),  # bulk solution
-]
+phi_0 = unxt.Quantity(0.025, "V")
 
-# 4. Solve
+bcs = ()
+bcs += ConstP(phi=phi_0)([0])
+bcs += ConstP(phi=unxt.Quantity(0.0, "V"))([n_grid - 1])
+
 edl.compute(x, bcs)
 
-# 5. Post-process
-phi = edl.result.solution  # potential profile
-ion_conc = edl.get_ion_concentration_profiles()  # dict of ion concentrations
+result = edl.result
+phi = result.phi
+sigma = result.sigma
+rho = result.rho
+ion_conc = result.ion_conc
 ```
 
-## Input File Format
+`ElectricalDoubleLayer.compute()` stores results in `edl.result`, an `EDLStatus` object with:
 
-Parameters are loaded from a JSON or YAML file:
+- `coordinate`
+- `sigma`
+- `phi`
+- `efield`
+- `rho`
+- `ion_conc`
+- `epsilon_r`
+
+## Parameter File Format
+
+You can initialize the solver from a dictionary or from a `.json`, `.yml`, or `.yaml` file.
+
+Example:
 
 ```json
 {
-  "temperature": { "value": 298, "unit": "K" },
-  "electrode": {},
+  "unit": "metal",
+  "temperature": 298.15,
   "electrolyte": {
-    "epsilon_r": 78.5,
+    "solvent": {
+      "type": "booth",
+      "epsilon_r_0": 78.4,
+      "epsilon_r_inf": 1.78
+    },
     "ions": {
       "Na": {
-        "molar_conc": { "value": 0.01, "unit": "mol/L" },
-        "charge": { "value": 1.0, "unit": "e" }
+        "molar_conc": 0.01,
+        "charge": 1.0,
+        "radius": 3.6
       },
       "Cl": {
-        "molar_conc": { "value": 0.01, "unit": "mol/L" },
-        "charge": { "value": -1.0, "unit": "e" }
+        "molar_conc": 0.01,
+        "charge": -1.0,
+        "radius": 3.3
       }
     }
   },
-  "solver": { "method": "newton", "max_iter": 30, "tol": 1e-6 }
+  "model": {
+    "type": "bikerman"
+  },
+  "solver": {
+    "method": "newton",
+    "max_iter": 500,
+    "atol_var": 1e-6
+  },
+  "grad_op": {
+    "type": "finite_volume",
+    "coordinate_system": "cartesian"
+  }
 }
 ```
 
-| Field                            | Description                                          |
-| -------------------------------- | ---------------------------------------------------- |
-| `temperature`                    | System temperature with unit                         |
-| `electrolyte.epsilon_r`          | Relative permittivity of the solvent (default: 78.5) |
-| `electrolyte.ions`               | Dict of ions, each with `molar_conc` and `charge`    |
-| `solver.method`                  | `"newton"`, `"adam"`, `"sgd"`, or `"rmsprop"`        |
-| `solver.max_iter` / `solver.tol` | Convergence controls                                 |
+Supported top-level keys:
 
-## Package Structure
+| Key                   | Meaning                                                                                                                                              |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `unit`                | [Lammps-type](https://docs.lammps.org/units.html) unit system for input parameters. Defaults to `metal`.                                             |
+| `temperature`         | Absolute temperature. Required.                                                                                                                      |
+| `dim`                 | Model dimension. The current solver implementation supports `dim = 1`.                                                                               |
+| `electrode`           | Electrode settings. Present for API completeness; currently minimal.                                                                                 |
+| `electrolyte.ions`    | Ion dictionary keyed by species name. Each ion supports `charge`, `molar_conc`, and optional `radius`.                                               |
+| `electrolyte.solvent` | Solvent dielectric model. `type` can be `uniform`, `booth`, or `langevin`.                                                                           |
+| `model`               | Charge-density model. `type` can be `boltzmann` or `bikerman`.                                                                                       |
+| `solver`              | Nonlinear solver settings such as `method`, `max_iter`, `atol_var`, and `atol_res`.                                                                  |
+| `grad_op`             | Discrete gradient operator settings. `type` can be `finite_difference` or `finite_volume`; `coordinate_system` can be `cartesian` or `axisymmetric`. |
 
+## Public API
+
+Main imports:
+
+```python
+from fdm_edl.api import (
+    ElectricalDoubleLayer,
+    Electrolyte,
+    ConstP,
+    ConstQ,
+    Symmetric,
+    Stern,
+)
 ```
+
+Benchmarks:
+
+```python
+from fdm_edl.benchmark import (
+    GCSModel,
+    LinearPoissonBoltzmann,
+    NonLinearPoissonBoltzmann,
+)
+```
+
+## Repository Layout
+
+```text
 src/fdm_edl/
-├── edl/          # Main API: ElectricalDoubleLayer, Electrode, Electrolyte, Ion
-├── bc/           # Boundary conditions: Dirichlet, Neumann, Robin, Periodic
-├── operators/    # FDM operators: LaplacianOperator1D (3-point stencil)
-├── solver/       # Solvers: NewtonSolver, OptaxSolver (factory registry)
-├── mesh/         # Mesh generation: LineMesh (via Gmsh)
-├── test/         # Analytical solutions: LinearPB, NonLinearPB
-└── utils/        # I/O helpers, unit conversion
+├── api/         # User-facing EDL objects and boundary-condition helpers
+├── benchmark/   # Analytical and semi-analytical reference models
+├── isotherm/    # Surface isotherm models
+├── models/      # Charge-density and solvent dielectric-response models
+├── op/          # Finite-difference / finite-volume discrete operators
+├── solver/      # Newton and SciPy-based nonlinear solvers
+└── utils/       # I/O, constants, units, and output dataclasses
 ```
 
 ## Examples
 
-See [`examples/00.1D-PB_analytical/`](examples/00.1D-PB_analytical/) for Jupyter notebooks validating the solver against analytical Poisson-Boltzmann solutions:
-
-- **Linear PB** — small-potential (Debye-Hückel) regime
-- **Non-linear PB** — full non-linear solution for 1:1 electrolytes
+- `examples/00.1D-PB_analytical/`: linear and nonlinear Poisson-Boltzmann notebooks
+- `examples/01.bikerman/`: Bikerman model example with Stern boundary conditions and field-dependent dielectric response
 
 ## Testing
 
@@ -120,6 +207,13 @@ See [`examples/00.1D-PB_analytical/`](examples/00.1D-PB_analytical/) for Jupyter
 pytest tests/
 ```
 
+The test suite covers:
+
+- gradient operators
+- nonlinear Poisson-Boltzmann regression
+- solver backends
+- dielectric-response models
+
 ## License
 
-LGPL-3.0-or-later
+This project is licensed under the LGPL-3.0-or-later license. See [LICENSE](LICENSE).
