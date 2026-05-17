@@ -10,7 +10,7 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: "Home", link: "/" },
-      { text: "API Reference", link: "/reference/" },
+      { text: "API Reference", link: "/api/fdm_edl.html", target: "_self" },
       { text: "GitHub", link: "https://github.com/ChiahsinChu/fdm-edl" },
     ],
     // sidebar: {

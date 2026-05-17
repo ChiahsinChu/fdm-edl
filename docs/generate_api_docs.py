@@ -9,7 +9,7 @@ OUT = ROOT / "docs" / "public" / "api"
 SITE_NAV = """
         <h2>Site</h2>
         <ul>
-            <li><a href="/">Home</a></li>
+            <li><a href="/fdm-edl/">Home</a></li>
         </ul>
 
 """
@@ -44,14 +44,3 @@ for html_file in OUT.rglob("*.html"):
         1,
     )
     html_file.write_text(content, encoding="utf-8")
-
-# for html_file in OUT.rglob("*.html"):
-#     content = html_file.read_text(encoding="utf-8")
-#     if "<h2>Site</h2>" in content:
-#         continue
-#     content = content.replace(
-#         "            <h2>Submodules</h2>",
-#         SITE_NAV + "            <h2>Submodules</h2>",
-#         1,
-#     )
-#     html_file.write_text(content, encoding="utf-8")
