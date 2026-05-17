@@ -20,6 +20,7 @@ last_updated: 2026-05-17
 - [x] Compute analytical properties (e.g., Debye length) without solving the full PDE
 - [x] Add physical units to output results and plots (e.g., via [`unxt`](https://github.com/GalacticDynamics/unxt))
 - [x] Improve type annotations and static-type compatibility in API/model/solver modules
+- [x] Fix npm cache dependency error in GitHub Pages deployment workflow
 
 ### Charge models
 

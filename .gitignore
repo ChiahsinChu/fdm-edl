@@ -221,5 +221,4 @@ __marimo__/
 _version.py
 
 cache
-package-lock.json
 node_modules/

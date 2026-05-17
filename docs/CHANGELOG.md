@@ -11,6 +11,7 @@ last_updated: 2026-05-17
 ### Added
 
 - GitHub Pages deployment workflow in `.github/workflows/deploy-docs-ghpages.yml` to build VitePress docs and publish `docs/.vitepress/dist` on pushes to `master`
+- `package-lock.json` committed to version control for reproducible npm installs
 - New solver diagnostics in `RootSolveResult` (`gradient`, `source`) in `src/fdm_edl/solver/base.py`
 - New `src/fdm_edl/solver/newton.py` implementation with configurable backtracking line search (`alpha`, `max_iter_ls`) and multi-criterion convergence controls (`atol_*`, `rtol_*`)
 - New matrix-free Krylov linear solver module `src/fdm_edl/solver/scipy.py` with `BiCGStabSolver`, `CGSolver`, and `GMRESSolver` implementations using `jax.scipy.sparse.linalg`
@@ -22,7 +23,9 @@ last_updated: 2026-05-17
 
 ### Changed
 
+- GitHub Pages deployment workflow `.github/workflows/deploy-docs-ghpages.yml` now manages npm cache manually instead of via `actions/setup-node`, allowing builds to proceed without a lock file
 - Python test CI workflow in `.github/workflows/test_python.yml` now runs on push/pull_request with Python 3.11-3.13, adds disk-space cleanup, emits JUnit output, and uploads both coverage and test-results reports through Codecov v5
+- Removed `package-lock.json` from `.gitignore` to enable reproducible builds and faster CI cache hits
 - VitePress config in `docs/.vitepress/config.mts` now uses title `FDM-EDL`, excludes internal docs-agent files from source pages, and ignores generated API/source dead-link patterns
 - API reference redirect page `docs/reference/fdm_edl.md` switched from inline script to Vue `onMounted()` redirect logic for VitePress compatibility
 - Docs optional dependency set in `pyproject.toml` was simplified to `pdoc` only, reflecting the current API docs generation pipeline

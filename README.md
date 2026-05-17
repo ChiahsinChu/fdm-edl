@@ -1,5 +1,7 @@
 # FDM-EDL
 
+[![codecov](https://codecov.io/gh/ChiahsinChu/fdm-edl/graph/badge.svg?token=CdPAE72ak3)](https://codecov.io/gh/ChiahsinChu/fdm-edl)
+
 Finite-difference electrical double layer simulations with JAX and unit-aware inputs.
 
 `fdm_edl` solves continuum electrical double layer models from JSON/YAML-style parameter sets or Python dictionaries. The current package is focused on 1D problems, with modular charge-density models, dielectric-response models, boundary conditions, and nonlinear solvers.
