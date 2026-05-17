@@ -12,6 +12,7 @@ last_updated: 2026-05-17
 
 - GitHub Pages deployment workflow in `.github/workflows/deploy-docs-ghpages.yml` to build VitePress docs and publish `docs/.vitepress/dist` on pushes to `master`
 - `package-lock.json` committed to version control for reproducible npm installs
+- VitePress docs content split into dedicated pages for getting started, parameters, examples, and development notes under `docs/docs/`, with nav/sidebar updates in `docs/.vitepress/config.mts`
 - New solver diagnostics in `RootSolveResult` (`gradient`, `source`) in `src/fdm_edl/solver/base.py`
 - New `src/fdm_edl/solver/newton.py` implementation with configurable backtracking line search (`alpha`, `max_iter_ls`) and multi-criterion convergence controls (`atol_*`, `rtol_*`)
 - New matrix-free Krylov linear solver module `src/fdm_edl/solver/scipy.py` with `BiCGStabSolver`, `CGSolver`, and `GMRESSolver` implementations using `jax.scipy.sparse.linalg`
@@ -23,6 +24,7 @@ last_updated: 2026-05-17
 
 ### Changed
 
+- README docs content was trimmed and moved into the VitePress site pages under `docs/docs/` to keep the repository documentation single-sourced
 - GitHub Pages deployment workflow `.github/workflows/deploy-docs-ghpages.yml` refactored to use official GitHub Pages actions (`configure-pages@v4`, `upload-pages-artifact@v3`, `deploy-pages@v4`) with split build/deploy jobs, minimal `pages`/`id-token` permissions, and a concurrency guard preventing overlapping deployments; replaces `peaceiris/actions-gh-pages`
 - VitePress config `docs/.vitepress/config.mts` now sets `base: "/fdm-edl/"` for correct GitHub Pages subpath routing
 - Python test CI workflow in `.github/workflows/test_python.yml` now only triggers when files under `src/**` or `tests/**` change, and previously also added Python 3.11-3.13 matrix, disk-space cleanup, JUnit output, and Codecov v5 uploads

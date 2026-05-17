@@ -10,19 +10,22 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: "Home", link: "/" },
+      { text: "Docs", link: "/docs/" },
       { text: "API Reference", link: "/api/fdm_edl.html", target: "_self" },
       { text: "GitHub", link: "https://github.com/ChiahsinChu/fdm-edl" },
     ],
-    // sidebar: {
-    //   "/reference/": [
-    //     {
-    //       text: "API Reference",
-    //       items: [
-    //         { text: "Overview", link: "/reference/" },
-    //         { text: "fdm_edl", link: "/reference/fdm_edl.html" },
-    //       ],
-    //     },
-    //   ],
-    // },
+    sidebar: {
+      "/docs/": [
+        {
+          text: "Documentation",
+          items: [
+            { text: "Getting Started", link: "/docs/" },
+            { text: "Examples", link: "/docs/examples/" },
+            { text: "Parameters", link: "/docs/config_params.md" },
+            { text: "Development", link: "/docs/development/" },
+          ],
+        },
+      ],
+    },
   },
 });

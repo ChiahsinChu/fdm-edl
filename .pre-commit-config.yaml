@@ -5,7 +5,9 @@ repos:
     rev: v4.6.0
     hooks:
       - id: trailing-whitespace
+        exclude: \.(html|js)$
       - id: end-of-file-fixer
+        exclude: \.(html|js)$
       - id: check-yaml
         args: ["--unsafe"]
       - id: check-json
@@ -87,7 +89,7 @@ repos:
     hooks:
       # C++, js
       - id: insert-license
-        files: \.(c|cc|cpp|js|ts|h|hpp)$
+        files: \.(c|cc|cpp|ts|h|hpp)$
         args:
           - --license-filepath
           - .license-header.txt
@@ -114,7 +116,7 @@ repos:
           - --no-extra-eol
       # HTML
       - id: insert-license
-        files: \.(html|vue|xml)$
+        files: \.(vue|xml)$
         args:
           - --license-filepath
           - .license-header.txt
