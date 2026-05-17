@@ -2,7 +2,7 @@
 import { onMounted } from "vue";
 
 onMounted(() => {
-	window.location.replace("/api/fdm_edl.html");
+	window.location.replace("/fdm-edl/api/fdm_edl.html");
 });
 </script>
 

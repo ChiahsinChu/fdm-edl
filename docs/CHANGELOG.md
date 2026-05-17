@@ -23,8 +23,9 @@ last_updated: 2026-05-17
 
 ### Changed
 
-- GitHub Pages deployment workflow `.github/workflows/deploy-docs-ghpages.yml` now manages npm cache manually instead of via `actions/setup-node`, allowing builds to proceed without a lock file
-- Python test CI workflow in `.github/workflows/test_python.yml` now runs on push/pull_request with Python 3.11-3.13, adds disk-space cleanup, emits JUnit output, and uploads both coverage and test-results reports through Codecov v5
+- GitHub Pages deployment workflow `.github/workflows/deploy-docs-ghpages.yml` refactored to use official GitHub Pages actions (`configure-pages@v4`, `upload-pages-artifact@v3`, `deploy-pages@v4`) with split build/deploy jobs, minimal `pages`/`id-token` permissions, and a concurrency guard preventing overlapping deployments; replaces `peaceiris/actions-gh-pages`
+- VitePress config `docs/.vitepress/config.mts` now sets `base: "/fdm-edl/"` for correct GitHub Pages subpath routing
+- Python test CI workflow in `.github/workflows/test_python.yml` now only triggers when files under `src/**` or `tests/**` change, and previously also added Python 3.11-3.13 matrix, disk-space cleanup, JUnit output, and Codecov v5 uploads
 - Removed `package-lock.json` from `.gitignore` to enable reproducible builds and faster CI cache hits
 - VitePress config in `docs/.vitepress/config.mts` now uses title `FDM-EDL`, excludes internal docs-agent files from source pages, and ignores generated API/source dead-link patterns
 - API reference redirect page `docs/reference/fdm_edl.md` switched from inline script to Vue `onMounted()` redirect logic for VitePress compatibility
@@ -42,6 +43,8 @@ last_updated: 2026-05-17
 
 ### Fixed
 
+- API reference redirect URL in `docs/reference/fdm_edl.md` updated to include `/fdm-edl/` base path prefix so it resolves correctly under the GitHub Pages subpath
+- API reference index link in `docs/reference/index.md` corrected from `/reference/fdm_edl.html` to `/api/fdm_edl.html`
 - Type signatures now consistently describe residual functions with auxiliary outputs across API and solver modules, improving static typing for Newton/JAX Jacobian calls
 
 ### Removed

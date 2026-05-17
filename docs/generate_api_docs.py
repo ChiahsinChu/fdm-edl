@@ -1,7 +1,8 @@
-from pathlib import Path
+# SPDX-License-Identifier: GPL-3.0-or-later
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "public" / "api"

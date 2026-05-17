@@ -2,12 +2,11 @@ import { defineConfig } from "vitepress";
 
 export default defineConfig({
   title: "FDM-EDL",
-  description: "Finite-difference electrical double layer simulations with JAX and unit-aware inputs",
+  description:
+    "Finite-difference electrical double layer simulations with JAX and unit-aware inputs",
+  base: "/fdm-edl/",
   srcExclude: ["agents/**", "CHANGELOG.md"],
-  ignoreDeadLinks: [
-    /^(\.\.?\/)?src\/fdm_edl\/.*:\d+$/,
-    "./LICENSE",
-  ],
+  ignoreDeadLinks: [/^(\.\.?\/)?src\/fdm_edl\/.*:\d+$/, "./LICENSE"],
   themeConfig: {
     nav: [
       { text: "Home", link: "/" },

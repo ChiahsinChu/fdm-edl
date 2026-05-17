@@ -1,10 +1,9 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+import unxt
 from jax import numpy as jnp
 
-import unxt
-
-from fdm_edl.utils import constants, save_dict
-from fdm_edl.api.bc import Stern, ConstP
 from fdm_edl.api import ElectricalDoubleLayer
+from fdm_edl.api.bc import ConstP, Stern
 
 x_img = unxt.Quantity(0.9, "angstrom")
 x_IHP = unxt.Quantity(2.7, "angstrom")
@@ -39,6 +38,6 @@ for phi in unxt.Quantity(jnp.linspace(-1.0, 1.0, 10), unit="V"):
     edl_obj.compute(x, bcs, phi0=phi0_guess)
     assert edl_obj.result is not None
     phi0_guess = edl_obj.result.phi
-    
+
     # edl_obj.compute_residual(jnp.ones_like(x.value), bcs, x.value)
     print(phi, edl_obj.result.sigma)
