@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Tuple
 
 from jax import numpy as jnp
 
@@ -16,7 +16,9 @@ if TYPE_CHECKING:
 
 from ..utils.bc import BoundaryCondition
 
-ResidualFunction = Callable[..., jnp.ndarray]
+ResidualFunction = Callable[
+    ..., Tuple[jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]]
+]
 
 
 @dataclass(frozen=True)
@@ -34,12 +36,20 @@ class RootSolveResult:
         Number of iterations performed.
     residual : jax.Array
         Residual vector evaluated at ``solution``.
+    gradient : jax.Array or None
+        Electric-field vector (gradient of the potential) at ``solution``,
+        or ``None`` if not returned by the residual function.
+    source : jax.Array or None
+        Source term evaluated at ``solution``, or ``None`` if not returned
+        by the residual function.
     """
 
     solution: jax.Array
     converged: bool
     n_iter: int
     residual: jax.Array
+    gradient: jax.Array | None = None
+    source: jax.Array | None = None
 
     def __post_init__(self):
         assert self.n_iter >= 0, "n_iter must be non-negative"
@@ -76,6 +86,28 @@ class BaseSolver(ABC):
             return super().__new__(solver_cls)
         return super().__new__(cls)
 
+    def __init__(
+        self,
+        max_iter: int = 20,
+        atol_var: float = 1e-6,
+        rtol_var: float | None = None,
+        atol_grad: float | None = None,
+        rtol_grad: float | None = None,
+        atol_src: float | None = None,
+        rtol_src: float | None = None,
+        atol_res: float | None = None,
+        rtol_res: float | None = None,
+    ):
+        self.max_iter = max_iter
+        self.atol_var = atol_var
+        self.rtol_var = rtol_var
+        self.atol_grad = atol_grad
+        self.rtol_grad = rtol_grad
+        self.atol_src = atol_src
+        self.rtol_src = rtol_src
+        self.atol_res = atol_res
+        self.rtol_res = rtol_res
+
     def __init_subclass__(cls, *, methods: tuple[str, ...] = (), **kwargs):
         super().__init_subclass__(**kwargs)
         for method in methods:
@@ -96,7 +128,8 @@ class BaseSolver(ABC):
         ----------
         residual_fn : callable
             Residual function with signature
-            ``residual_fn(phi, *args) -> jax.Array``.
+            ``residual_fn(phi, *args) -> Tuple[jax.Array, Tuple[jax.Array, jax.Array, jax.Array]]``
+            returning ``(residual, (gradient, div_D, source))``.
         phi : jax.Array
             Initial guess for the solution.
         boundary_conditions : Sequence[BoundaryCondition]
@@ -108,6 +141,28 @@ class BaseSolver(ABC):
         -------
         RootSolveResult
             Result object containing the solution, convergence flag,
-            iteration count, and final residual norm.
+            iteration count, residual, gradient, and source term.
         """
         raise NotImplementedError
+
+    @staticmethod
+    def _residual_norm(res: jax.Array) -> jax.Array:
+        """Compute the scalar residual norm used for convergence checking."""
+        return jnp.mean(jnp.square(res))
+
+    @staticmethod
+    def _clamp_dirichlet_nodes(
+        phi: jax.Array,
+        bcs: Sequence[BoundaryCondition],
+    ) -> jax.Array:
+        """Clamp Dirichlet nodes in the solution vector."""
+        for bc in bcs:
+            if bc.is_dirichlet:
+                phi = bc.clamp_dirichlet(phi)
+        return phi
+
+    @staticmethod
+    def _cond_fn(state, max_iter: int) -> jax.Array:
+        _phi, _grad, _src, _res, converged, n_iter = state
+        # continue iterating if not converged and under max iterations
+        return jnp.logical_and(~converged, n_iter < max_iter)

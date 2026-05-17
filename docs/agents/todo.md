@@ -1,7 +1,7 @@
 ---
 status: draft
 author: Jia-Xin Zhu, AI Agent
-last_updated: 2026-04-27
+last_updated: 2026-05-17
 ---
 
 # Development Plans
@@ -40,6 +40,8 @@ last_updated: 2026-04-27
 ### Optimizer
 
 - [ ] Add general interfaces to optax
+- [x] Refactor Newton solver into `solver/newton.py` with configurable backtracking (`alpha`, `max_iter_ls`) and multi-criterion tolerances
+- [x] Extend `BaseSolver`/`RootSolveResult` to carry residual auxiliary diagnostics (`gradient`, `source`) and shared convergence helpers
 
 ### 2D/3D FEM
 
@@ -64,6 +66,7 @@ last_updated: 2026-04-27
 
 ## Documentation
 
+- [ ] Use [vitepress](https://vitepress.dev/guide/what-is-vitepress) for documentation
 - [x] Add usage example notebook for 1D EDL (extend `examples/00.1d_edl/run.ipynb`)
 - [x] Add API docstrings to `ElectricalDoubleLayer`, `Electrode`, `Electrolyte`, `Solver`
 - [x] Add API docstrings to isotherm module (`BaseIsotherm`, `LangmuirIsotherm`, `FrumkinIsotherm`)
@@ -71,6 +74,7 @@ last_updated: 2026-04-27
 ## Unit Tests
 
 - [ ] Add coverage-driven tests for PBE residual pathways (focus: `benchmark/pb1d.py`, uncovered branches at 60% coverage)
+- [ ] Add targeted regression tests for new solver stopping criteria (`atol_*`/`rtol_*`) and auxiliary residual outputs
 - [x] Add numerical-consistency tests for gradient/Laplacian operators against JAX autodiff (`tests/test_grad.py`)
 - [x] Add dielectric-response regression tests around the small-field transition for Booth and Langevin water models (`tests/test_water_eps.py`)
 - [ ] Add dedicated unit tests for `EuclideanFVOp` on nonuniform grids and nonlinear dielectric closures
@@ -81,5 +85,6 @@ last_updated: 2026-04-27
 
 ## Chores
 
-- [x] Set up CI from GitHub workflow files (https://docs.gitlab.com/ci/migration/github_actions/)
 - [ ] Check GPU compatibility for JAX solver
+- [x] Set up CI from GitHub workflow files (https://docs.gitlab.com/ci/migration/github_actions/)
+

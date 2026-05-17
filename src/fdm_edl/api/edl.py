@@ -6,11 +6,11 @@ import pathlib
 from typing import TYPE_CHECKING, cast
 
 import jax
-import jax.numpy as jnp
 import unxt
+from jax import numpy as jnp
 
 if TYPE_CHECKING:
-    from typing import Sequence
+    from typing import Sequence, Tuple
 
 from ..models import ChargeModel, create_charge_model
 from ..models.base import charge_density_profile
@@ -208,7 +208,63 @@ class ElectricalDoubleLayer:
         _params : dict
             Keyword arguments forwarded to :class:`~fdm_edl.solver.BaseSolver`.
         """
-        self.solver = cast(BaseSolver, BaseSolver(**_params))
+        params = copy.deepcopy(_params)
+        params.update(
+            {
+                "atol_var": (
+                    unxt.Quantity(
+                        _params["atol_var"],
+                        unit=uc.UNIT_SYSTEMS[self._unit_system]["electrical potential"],
+                    )
+                    .to(uc.UNIT_SYSTEMS["metal"]["electrical potential"])
+                    .value
+                    if _params.get("atol_var") is not None
+                    else None
+                ),
+                "atol_grad": (
+                    unxt.Quantity(
+                        _params["atol_grad"],
+                        unit=uc.UNIT_SYSTEMS[self._unit_system][
+                            "electrical field strength"
+                        ],
+                    )
+                    .to(uc.UNIT_SYSTEMS["metal"]["electrical field strength"])
+                    .value
+                    if _params.get("atol_grad") is not None
+                    else None
+                ),
+                "atol_src": (
+                    unxt.Quantity(
+                        _params["atol_src"],
+                        unit=uc.UNIT_SYSTEMS[self._unit_system][
+                            "electrical charge density"
+                        ],
+                    )
+                    .to(uc.UNIT_SYSTEMS["metal"]["electrical charge density"])
+                    .value
+                    if _params.get("atol_src") is not None
+                    else None
+                ),
+                "atol_res": (
+                    unxt.Quantity(
+                        _params["atol_res"],
+                        unit=uc.UNIT_SYSTEMS[self._unit_system][
+                            "electrical charge density"
+                        ]
+                        / uc.UNIT_SYSTEMS[self._unit_system]["electrical potential"],
+                    )
+                    .to(
+                        uc.UNIT_SYSTEMS["metal"]["electrical charge density"]
+                        / uc.UNIT_SYSTEMS["metal"]["electrical potential"]
+                    )
+                    .value
+                    if _params.get("atol_res") is not None
+                    else None
+                ),
+            }
+        )
+
+        self.solver = cast(BaseSolver, BaseSolver(**params))
 
     def compute(
         self,
@@ -338,7 +394,7 @@ class ElectricalDoubleLayer:
         phi: jax.Array,
         boundary_conditions: Sequence[BoundaryCondition],
         coordinates: jax.Array,
-    ):
+    ) -> Tuple[jax.Array, Tuple[jax.Array, jax.Array, jax.Array]]:
         """
         Compute the Poisson-Boltzmann residual at all grid nodes.
 
@@ -385,7 +441,7 @@ class ElectricalDoubleLayer:
             )
             residual = bc.update_residual(residual, phi, g_phi)
 
-        return residual
+        return residual, (g_phi, div_D, rho_ion)
 
     def _check_grad_op(self, grad_op: BaseGradientOP | None) -> BaseGradientOP:
         """

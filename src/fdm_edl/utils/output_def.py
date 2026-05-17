@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING
 
 import unxt
@@ -12,6 +12,33 @@ if TYPE_CHECKING:
     import jax
 
 from .unit_conversion import check_data_type
+
+
+def _serialize_value(a: unxt.Quantity | jax.Array | None) -> float | list | None:
+    if a is None:
+        return None
+    if isinstance(a, unxt.Quantity):
+        return a.value.tolist()
+    elif isinstance(a, jax.Array):
+        return a.tolist()
+    else:
+        raise ValueError(f"Unsupported type for serialization: {type(a)}")
+
+
+def serialize_dict(
+    d: Dict[str, unxt.Quantity | Dict[str, unxt.Quantity] | None],
+) -> Dict[str, float | list | Dict[str, list] | None]:
+    output_dict = {}
+    for f in fields(d):
+        _value = getattr(d, f.name)
+        # print(f.name, _value)
+        if isinstance(_value, dict):
+            value = {k: _serialize_value(v) for k, v in _value.items()}
+        else:
+            value = _serialize_value(_value)
+        output_dict[f.name] = value
+
+    return output_dict
 
 
 # for mandatory quantities, set attr
@@ -38,19 +65,7 @@ class EDLStatus:
             check_data_type(conc, "molar concentration")
 
     def serialize(self) -> Dict[str, unxt.Quantity | Dict[str, unxt.Quantity]]:
-        return {
-            "coordinate": self.coordinate.value.tolist(),
-            "sigma": self.sigma.value.tolist(),
-            "phi": self.phi.value.tolist(),
-            "efield": self.efield.value.tolist() if self.efield is not None else None,
-            "rho": self.rho.value.tolist() if self.rho is not None else None,
-            "ion_conc": {
-                key: value.value.tolist() for key, value in self.ion_conc.items()
-            },
-            "epsilon_r": (
-                self.epsilon_r.tolist() if self.epsilon_r is not None else None
-            ),
-        }
+        return {f.name: getattr(self, f.name) for f in fields(self)}
 
     def deserialize(
         data: Dict[str, unxt.Quantity | Dict[str, unxt.Quantity]],
@@ -83,18 +98,19 @@ class IsothermStatus:
             check_data_type(self.lateral_interaction, "chemical potential")
 
     def serialize(self) -> Dict[str, unxt.Quantity | jax.Array | float]:
-        return {
-            "phi": self.phi.value.tolist(),
-            "coverage": self.coverage.tolist(),
-            "temperature": self.temperature.value.tolist(),
-            "n_et": self.n_et,
-            "coverage_max": self.coverage_max,
-            "lateral_interaction": (
-                self.lateral_interaction.value.tolist()
-                if self.lateral_interaction is not None
-                else None
-            ),
-        }
+        # return {
+        #     "phi": self.phi.value.tolist(),
+        #     "coverage": self.coverage.tolist(),
+        #     "temperature": self.temperature.value.tolist(),
+        #     "n_et": self.n_et,
+        #     "coverage_max": self.coverage_max,
+        #     "lateral_interaction": (
+        #         self.lateral_interaction.value.tolist()
+        #         if self.lateral_interaction is not None
+        #         else None
+        #     ),
+        # }
+        return {f.name: getattr(self, f.name) for f in fields(self)}
 
     def deserialize(
         data: Dict[str, unxt.Quantity | jax.Array | float],

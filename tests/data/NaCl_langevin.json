@@ -24,6 +24,6 @@
   },
   "solver": {
     "max_iter": 20,
-    "tol": 1e-6
+    "atol_var": 1e-6
   }
 }

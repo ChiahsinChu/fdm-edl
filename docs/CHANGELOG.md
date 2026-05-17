@@ -1,10 +1,31 @@
 ---
 status: draft
 author: Jia-Xin Zhu, AI Agent
-last_updated: 2026-04-27
+last_updated: 2026-05-17
 ---
 
 # CHANGELOG
+
+## [Unreleased] - 2026-05-17
+
+### Added
+
+- New solver diagnostics in `RootSolveResult` (`gradient`, `source`) in `src/fdm_edl/solver/base.py`
+- New `src/fdm_edl/solver/newton.py` implementation with configurable backtracking line search (`alpha`, `max_iter_ls`) and multi-criterion convergence controls (`atol_*`, `rtol_*`)
+- `BiCGStabSolver` export in `src/fdm_edl/solver/__init__.py`
+
+### Changed
+
+- Solver base API now accepts tolerance families (`atol_var`, `rtol_var`, `atol_grad`, `rtol_grad`, `atol_src`, `rtol_src`, `atol_res`, `rtol_res`) and provides shared helper routines for residual norms, Dirichlet clamping, and loop conditions
+- `ElectricalDoubleLayer._loss()` now returns residual plus auxiliary fields (`grad(phi)`, `div_D`, `rho_ion`) so solvers can use richer convergence diagnostics
+- `ElectricalDoubleLayer` now converts solver absolute tolerances from the configured unit system into internal metal units before solver construction
+- Legacy Newton module `src/fdm_edl/solver/naive_newton.py` replaced by `src/fdm_edl/solver/newton.py`, and solver imports updated accordingly
+- Solver fixtures in `tests/data/*.json` migrated from `tol` to the new tolerance keys (`atol_var`, with `method`/`atol_res` where needed)
+- `serialize()` on `EDLStatus` and `IsothermStatus` now returns structured dataclass fields directly; serialization helper utilities were extended in `src/fdm_edl/utils/output_def.py`
+
+### Fixed
+
+- Type signatures now consistently describe residual functions with auxiliary outputs across API and solver modules, improving static typing for Newton/JAX Jacobian calls
 
 ## [Unreleased] - 2026-04-27
 

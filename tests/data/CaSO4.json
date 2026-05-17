@@ -22,7 +22,9 @@
     "type": "boltzmann"
   },
   "solver": {
+    "method": "newton",
     "max_iter": 20,
-    "tol": 1e-6
+    "atol_var": 1e-6,
+    "atol_res": 1e-3
   }
 }
