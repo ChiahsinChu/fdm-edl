@@ -72,6 +72,7 @@ last_updated: 2026-05-17
 - [x] Use [vitepress](https://vitepress.dev/guide/what-is-vitepress) for documentation
 - [x] Add pdoc-based API generation script (`docs/generate_api_docs.py`) and publish static API pages under `docs/public/api`
 - [x] Add VitePress reference entry pages (`docs/reference/index.md`, `docs/reference/fdm_edl.md`) to route API navigation
+- [x] Add Vue `onMounted()` redirect handling for API reference landing page compatibility with VitePress (`docs/reference/fdm_edl.md`)
 - [x] Add usage example notebook for 1D EDL (extend `examples/00.1d_edl/run.ipynb`)
 - [x] Add API docstrings to `ElectricalDoubleLayer`, `Electrode`, `Electrolyte`, `Solver`
 - [x] Add API docstrings to isotherm module (`BaseIsotherm`, `LangmuirIsotherm`, `FrumkinIsotherm`)
@@ -93,3 +94,5 @@ last_updated: 2026-05-17
 
 - [ ] Check GPU compatibility for JAX solver
 - [x] Set up CI from GitHub workflow files (https://docs.gitlab.com/ci/migration/github_actions/)
+- [x] Add GitHub Pages documentation deployment workflow for VitePress build artifacts (`.github/workflows/deploy-docs-ghpages.yml`)
+- [x] Modernize Python test workflow triggers/tooling and Codecov v5 reporting (`.github/workflows/test_python.yml`)

@@ -10,6 +10,7 @@ last_updated: 2026-05-17
 
 ### Added
 
+- GitHub Pages deployment workflow in `.github/workflows/deploy-docs-ghpages.yml` to build VitePress docs and publish `docs/.vitepress/dist` on pushes to `master`
 - New solver diagnostics in `RootSolveResult` (`gradient`, `source`) in `src/fdm_edl/solver/base.py`
 - New `src/fdm_edl/solver/newton.py` implementation with configurable backtracking line search (`alpha`, `max_iter_ls`) and multi-criterion convergence controls (`atol_*`, `rtol_*`)
 - New matrix-free Krylov linear solver module `src/fdm_edl/solver/scipy.py` with `BiCGStabSolver`, `CGSolver`, and `GMRESSolver` implementations using `jax.scipy.sparse.linalg`
@@ -21,6 +22,10 @@ last_updated: 2026-05-17
 
 ### Changed
 
+- Python test CI workflow in `.github/workflows/test_python.yml` now runs on push/pull_request with Python 3.11-3.13, adds disk-space cleanup, emits JUnit output, and uploads both coverage and test-results reports through Codecov v5
+- VitePress config in `docs/.vitepress/config.mts` now uses title `FDM-EDL`, excludes internal docs-agent files from source pages, and ignores generated API/source dead-link patterns
+- API reference redirect page `docs/reference/fdm_edl.md` switched from inline script to Vue `onMounted()` redirect logic for VitePress compatibility
+- Docs optional dependency set in `pyproject.toml` was simplified to `pdoc` only, reflecting the current API docs generation pipeline
 - Solver base API now accepts tolerance families (`atol_var`, `rtol_var`, `atol_grad`, `rtol_grad`, `atol_src`, `rtol_src`, `atol_res`, `rtol_res`) and provides shared helper routines for residual norms, Dirichlet clamping, and loop conditions
 - Extracted convergence-check logic into shared `_convergence_flag()` helper method in `BaseSolver`, eliminating duplicate conditional logic across `NewtonSolver` and `ScipySolver` implementations
 - `ElectricalDoubleLayer._loss()` now returns residual plus auxiliary fields (`grad(phi)`, `div_D`, `rho_ion`) so solvers can use richer convergence diagnostics

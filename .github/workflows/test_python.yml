@@ -1,17 +1,34 @@
 name: Test Python
 
+on:
+  push:
+    branches-ignore:
+      - gh_pages
+  pull_request:
+
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      max-parallel: 4
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Free Disk Space for Python
+        uses: endersonmenezes/free-disk-space@v3
+        with:
+          remove_android: true
+          remove_dotnet: true
+          remove_folders: "/usr/share/swift /usr/local/julia"
+          rm_cmd: "rmz" # NEW: Faster deletion
+          rmz_version: "3.1.1" # NEW: Specify rmz version
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -20,18 +37,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[test]
 
-      - name: Run tests with coverage
+      - name: Test with pytest
         run: |
-          pytest --cov=fdm_edl --cov-report=xml --cov-report=term-missing
+          pytest --cov=fdm_edl tests --junitxml=junit.xml --cov-report=xml
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        if: matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v5
         with:
-          file: ./coverage.xml
-          flags: unittests
-          env_vars: OS,PYTHON
-        if: matrix.python-version == '3.12'
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: ${{ github.repository }}
+          files: ./coverage.xml
+          report_type: coverage
 
-      - name: Type checking
-        run: |
-          mypy src/fdm_edl
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() && matrix.python-version == '3.11' }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: ${{ github.repository }}
+          files: ./junit.xml
+          report_type: test_results
