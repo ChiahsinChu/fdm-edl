@@ -166,3 +166,12 @@ class BaseSolver(ABC):
         _phi, _grad, _src, _res, converged, n_iter = state
         # continue iterating if not converged and under max iterations
         return jnp.logical_and(~converged, n_iter < max_iter)
+
+    @staticmethod
+    def _convergence_flag(a, b, atol: float, rtol: float) -> jax.Array:
+        if atol is not None or rtol is not None:
+            _atol = atol if atol is not None else 1e-8
+            _rtol = rtol if rtol is not None else 1e-5
+            return jnp.allclose(a, b, atol=_atol, rtol=_rtol)
+        else:
+            return jnp.bool_(True)

@@ -39,7 +39,8 @@ last_updated: 2026-05-17
 
 ### Optimizer
 
-- [ ] Add general interfaces to optax
+- [ ] Add non-linear solvers from [PETSC](https://petsc.org/release/manual/snes/#).
+- [ ] Add root-finding solvers from [optimistix](https://docs.kidger.site/optimistix/api/root_find/)
 - [x] Refactor Newton solver into `solver/newton.py` with configurable backtracking (`alpha`, `max_iter_ls`) and multi-criterion tolerances
 - [x] Extend `BaseSolver`/`RootSolveResult` to carry residual auxiliary diagnostics (`gradient`, `source`) and shared convergence helpers
 - [x] Add matrix-free Krylov solver options (`bicgstab`, `cg`, `gmres`) in `solver/scipy.py` and export them through `solver/__init__.py`

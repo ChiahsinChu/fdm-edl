@@ -165,37 +165,20 @@ class NewtonSolver(BaseSolver, methods=("newton",)):
                 grad_new, _div_D, src_new = _aux
 
                 # check convergence on step, gradient, source
-                if self.atol_var is not None or self.rtol_var is not None:
-                    atol = self.atol_var if self.atol_var is not None else 1e-6
-                    rtol = self.rtol_var if self.rtol_var is not None else 1e-3
-                    converged_step = jnp.allclose(
-                        phi_new, phi_old, atol=atol, rtol=rtol
-                    )
-                else:
-                    converged_step = jnp.bool_(True)
-                if self.atol_grad is not None or self.rtol_grad is not None:
-                    atol = self.atol_grad if self.atol_grad is not None else 1e-8
-                    rtol = self.rtol_grad if self.rtol_grad is not None else 1e-5
-                    converged_grad = jnp.allclose(
-                        grad_new, grad_old, atol=atol, rtol=rtol
-                    )
-                else:
-                    converged_grad = jnp.bool_(True)
-                if self.atol_src is not None or self.rtol_src is not None:
-                    atol = self.atol_src if self.atol_src is not None else 1e-8
-                    rtol = self.rtol_src if self.rtol_src is not None else 1e-5
-                    converged_src = jnp.allclose(src_new, src_old, atol=atol, rtol=rtol)
-                else:
-                    converged_src = jnp.bool_(True)
+                converged_step = self._convergence_flag(
+                    phi_new, phi_old, self.atol_var, self.rtol_var
+                )
+                converged_grad = self._convergence_flag(
+                    grad_new, grad_old, self.atol_grad, self.rtol_grad
+                )
+                converged_src = self._convergence_flag(
+                    src_new, src_old, self.atol_src, self.rtol_src
+                )
                 # check the residual
-                if self.atol_res is not None or self.rtol_res is not None:
-                    atol = self.atol_res if self.atol_res is not None else 1e-8
-                    rtol = self.rtol_res if self.rtol_res is not None else 1e-5
-                    converged_res = jnp.allclose(
-                        res_new, jnp.zeros_like(res_new), atol=atol, rtol=rtol
-                    )
-                else:
-                    converged_res = jnp.bool_(True)
+                converged_res = self._convergence_flag(
+                    res_new, jnp.zeros_like(res_new), self.atol_res, self.rtol_res
+                )
+
                 converged = (
                     converged_step * converged_grad * converged_src * converged_res
                 )

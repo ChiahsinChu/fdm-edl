@@ -18,6 +18,7 @@ last_updated: 2026-05-17
 ### Changed
 
 - Solver base API now accepts tolerance families (`atol_var`, `rtol_var`, `atol_grad`, `rtol_grad`, `atol_src`, `rtol_src`, `atol_res`, `rtol_res`) and provides shared helper routines for residual norms, Dirichlet clamping, and loop conditions
+- Extracted convergence-check logic into shared `_convergence_flag()` helper method in `BaseSolver`, eliminating duplicate conditional logic across `NewtonSolver` and `ScipySolver` implementations
 - `ElectricalDoubleLayer._loss()` now returns residual plus auxiliary fields (`grad(phi)`, `div_D`, `rho_ion`) so solvers can use richer convergence diagnostics
 - `ElectricalDoubleLayer` now converts solver absolute tolerances from the configured unit system into internal metal units before solver construction
 - Legacy Newton module `src/fdm_edl/solver/naive_newton.py` replaced by `src/fdm_edl/solver/newton.py`, and solver imports updated accordingly
